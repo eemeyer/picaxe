@@ -7,7 +7,6 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"log"
 )
 
 type ImageFormat int
@@ -36,7 +35,7 @@ type ProcessingSpec struct {
 func ProcessImage(reader io.ReadSeeker, writer io.Writer, spec ProcessingSpec) error {
 	img, formatName, err := image.Decode(reader)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	reader.Seek(0, 0)

@@ -1,0 +1,14 @@
+package: github.com/t11e/picaxe
+import:
+- package: github.com/disintegration/imaging
+- package: github.com/nfnt/resize
+- package: github.com/oliamb/cutter
+- package: github.com/rwcarlsen/goexif
+  subpackages:
+  - exif
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: github.com/rs/xhandler
+  version: ~1.0.0
+- package: github.com/rs/xmux

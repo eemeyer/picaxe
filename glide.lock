@@ -1,0 +1,29 @@
+hash: 8d37b117eff7e313c9e61dd2937610cf9d78208626f76122d049ce576dbbe532
+updated: 2017-01-18T11:16:23.569914173-05:00
+imports:
+- name: github.com/disintegration/imaging
+  version: 243d2d8673c1225a6afceeb9b3b4423d485dc8df
+- name: github.com/nfnt/resize
+  version: 891127d8d1b52734debe1b3c3d7e747502b6c366
+- name: github.com/oliamb/cutter
+  version: 6bb26911f52436bb5c63667f9aaa2d1826b2df9e
+- name: github.com/rs/xhandler
+  version: d9d9599b6aaf6a058cb7b1f48291ded2cbd13390
+- name: github.com/rs/xmux
+  version: 447ce20d8516cc0d2564fc3de70b5d078e0b816e
+- name: github.com/rwcarlsen/goexif
+  version: 709fab3d192d7c62f86043caff1e7e3fb0f42bd8
+  subpackages:
+  - exif
+  - tiff
+- name: golang.org/x/image
+  version: 1ff62c92167a10494f3e0b1e77cb67860a6ac43a
+  subpackages:
+  - bmp
+  - tiff
+  - tiff/lzw
+- name: golang.org/x/net
+  version: cbbbe2bc0f2efdd2afb318d93f1eadb19350e4a3
+  subpackages:
+  - context
+testImports: []
