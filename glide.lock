@@ -1,5 +1,5 @@
-hash: 8d37b117eff7e313c9e61dd2937610cf9d78208626f76122d049ce576dbbe532
-updated: 2017-01-18T11:16:23.569914173-05:00
+hash: 0ae4892a5117917f1ef533e93227bc2ea4f2644680e9aca328f0144fdbf5f45a
+updated: 2017-01-18T13:18:46.39305831-05:00
 imports:
 - name: github.com/disintegration/imaging
   version: 243d2d8673c1225a6afceeb9b3b4423d485dc8df
@@ -7,6 +7,8 @@ imports:
   version: 891127d8d1b52734debe1b3c3d7e747502b6c366
 - name: github.com/oliamb/cutter
   version: 6bb26911f52436bb5c63667f9aaa2d1826b2df9e
+- name: github.com/pressly/chi
+  version: 54f435d539226571eab1987ed862b1c0fdfdc892
 - name: github.com/rs/xhandler
   version: d9d9599b6aaf6a058cb7b1f48291ded2cbd13390
 - name: github.com/rs/xmux

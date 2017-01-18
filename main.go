@@ -13,9 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rs/xhandler"
-	"github.com/rs/xmux"
-	"golang.org/x/net/context"
+	"github.com/pressly/chi"
+	"github.com/pressly/chi/middleware"
 )
 
 type contextKey int
@@ -25,39 +24,44 @@ const (
 )
 
 func main() {
-	ctx := context.WithValue(context.Background(), httpClientKey, &http.Client{Timeout: time.Duration(10 * time.Second)})
-
-	handler := buildHTTPHandler(ctx, xmux.New())
+	handler := buildHTTPHandler()
 
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 }
 
-func buildHTTPHandler(ctx context.Context, mux *xmux.Mux) http.Handler {
-	mux.GET("/api/picaxe/ping", xhandler.HandlerFuncC(pingHandler))
+func buildHTTPHandler() http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.CloseNotify)
+	r.Use(middleware.WithValue(httpClientKey, &http.Client{Timeout: time.Duration(10 * time.Second)}))
+	r.Use(middleware.Timeout(30 * time.Second))
+	r.Get("/api/picaxe/ping", pingHandler)
 
 	// TODO: add middleware to check that request is allowed
-	mux.GET("/api/picaxe/v1/get", xhandler.HandlerFuncC(resizeHandler))
+	r.Get("/api/picaxe/v1/get", resizeHandler)
 
-	chain := xhandler.Chain{}
-	chain.UseC(xhandler.CloseHandler)
-	return xhandler.New(ctx, chain.HandlerC(mux))
+	return r
 }
 
-func pingHandler(_ context.Context, resp http.ResponseWriter, _ *http.Request) {
+func pingHandler(resp http.ResponseWriter, _ *http.Request) {
 	resp.WriteHeader(200)
 	_, _ = resp.Write([]byte("picaxe"))
 }
 
-func resizeHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 	src, spec, err := makeProcessingSpec(req)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte(err.Error()))
 		return
 	}
-	httpClient, _ := ctx.Value(httpClientKey).(http.Client)
+	httpClient, _ := req.Context().Value(httpClientKey).(http.Client)
 	imgResp, err := httpClient.Get(src)
 	if err != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
