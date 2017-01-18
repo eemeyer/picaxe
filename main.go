@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pressly/chi"
@@ -57,6 +58,13 @@ func pingHandler(resp http.ResponseWriter, _ *http.Request) {
 }
 
 func resizeHandler(resp http.ResponseWriter, req *http.Request) {
+	etag := md5sum(req.URL.RawQuery)
+	if match := req.Header.Get("If-None-Match"); match != "" {
+		if strings.Contains(match, etag) {
+			resp.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 	src, spec, err := makeProcessingSpec(req)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -89,7 +97,7 @@ func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 
 	resp.Header().Set("Content-type", "image/png")
 	resp.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", 365*24*60*60))
-	resp.Header().Set("ETag", etag(req.URL.RawQuery))
+	resp.Header().Set("ETag", etag)
 	resp.WriteHeader(http.StatusOK)
 	resp.Write(buffer.Bytes())
 }
@@ -124,7 +132,7 @@ func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
 	}, nil
 }
 
-func etag(query string) string {
+func md5sum(query string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(query))
 	return hex.EncodeToString(hasher.Sum(nil))
