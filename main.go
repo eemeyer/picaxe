@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	_ "image/gif"
@@ -68,6 +70,7 @@ func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte(fmt.Sprintf("Unable to get %s: %v", src, err)))
 		return
 	}
+
 	defer imgResp.Body.Close()
 	sourceImg, err := ioutil.ReadAll(imgResp.Body)
 	if err != nil {
@@ -75,15 +78,20 @@ func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte(fmt.Sprintf("Unable to retrieve %s: %v", src, err)))
 		return
 	}
-	reader := bytes.NewReader(sourceImg)
-	//TODO : write cache headers - maybe need to buffer ProcessImage output to do this though
-	resp.Header().Set("Content-type", "image/png")
 
-	if err = ProcessImage(reader, resp, *spec); err != nil {
+	reader := bytes.NewReader(sourceImg)
+	buffer := bytes.NewBuffer(make([]byte, 0, 1024*50))
+	if err = ProcessImage(reader, buffer, *spec); err != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
 		resp.Write([]byte(fmt.Sprintf("Error processing %s: %v", src, err)))
 		return
 	}
+
+	resp.Header().Set("Content-type", "image/png")
+	resp.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", 365*24*60*60))
+	resp.Header().Set("ETag", etag(req.URL.RawQuery))
+	resp.WriteHeader(http.StatusOK)
+	resp.Write(buffer.Bytes())
 }
 
 func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
@@ -114,4 +122,10 @@ func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
 		NormalizeOrientation: true,
 		Quality:              0.9,
 	}, nil
+}
+
+func etag(query string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(query))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
