@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/rs/xhandler"
 	"github.com/rs/xmux"
@@ -23,7 +25,7 @@ const (
 )
 
 func main() {
-	ctx := context.WithValue(context.Background(), httpClientKey, &http.Client{})
+	ctx := context.WithValue(context.Background(), httpClientKey, &http.Client{Timeout: time.Duration(10 * time.Second)})
 
 	handler := buildHTTPHandler(ctx, xmux.New())
 
@@ -36,7 +38,7 @@ func buildHTTPHandler(ctx context.Context, mux *xmux.Mux) http.Handler {
 	mux.GET("/api/picaxe/ping", xhandler.HandlerFuncC(pingHandler))
 
 	// TODO: add middleware to check that request is allowed
-	mux.GET("/api/picaxe/scale", xhandler.HandlerFuncC(resizeHandler))
+	mux.GET("/api/picaxe/v1/get", xhandler.HandlerFuncC(resizeHandler))
 
 	chain := xhandler.Chain{}
 	chain.UseC(xhandler.CloseHandler)
@@ -49,20 +51,10 @@ func pingHandler(_ context.Context, resp http.ResponseWriter, _ *http.Request) {
 }
 
 func resizeHandler(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	src := req.FormValue("src")
-	var okay = src != ""
-	w, err := strconv.Atoi(req.FormValue("w"))
+	src, spec, err := makeProcessingSpec(req)
 	if err != nil {
-		okay = false
-	}
-	h, err := strconv.Atoi(req.FormValue("h"))
-	if err != nil {
-		okay = false
-	}
-
-	if !okay {
 		resp.WriteHeader(http.StatusBadRequest)
-		resp.Write([]byte("src, w, and h are required"))
+		resp.Write([]byte(err.Error()))
 		return
 	}
 	httpClient, _ := ctx.Value(httpClientKey).(http.Client)
@@ -83,7 +75,29 @@ func resizeHandler(ctx context.Context, resp http.ResponseWriter, req *http.Requ
 	//TODO : write cache headers - maybe need to buffer ProcessImage output to do this though
 	resp.Header().Set("Content-type", "image/png")
 
-	spec := ProcessingSpec{
+	if err = ProcessImage(reader, resp, *spec); err != nil {
+		resp.WriteHeader(http.StatusInternalServerError)
+		resp.Write([]byte(fmt.Sprintf("Error processing %s: %v", src, err)))
+		return
+	}
+}
+
+func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
+	query := req.URL.Query()
+	src := query.Get("src")
+	if src == "" {
+		return "", nil, errors.New("src is required")
+	}
+	w, err := strconv.Atoi(query.Get("w"))
+	if err != nil {
+		return "", nil, errors.New("w is required")
+	}
+	h, err := strconv.Atoi(query.Get("h"))
+	if err != nil {
+		return "", nil, errors.New("h is required")
+	}
+
+	return src, &ProcessingSpec{
 		Format:               ImageFormatPng,
 		Trim:                 TrimModeFuzzy,
 		TrimFuzzFactor:       0.5,
@@ -95,11 +109,5 @@ func resizeHandler(ctx context.Context, resp http.ResponseWriter, req *http.Requ
 		CropHeight:           h,
 		NormalizeOrientation: true,
 		Quality:              0.9,
-	}
-
-	if err = ProcessImage(reader, resp, spec); err != nil {
-		resp.WriteHeader(http.StatusInternalServerError)
-		resp.Write([]byte(fmt.Sprintf("Error processing %s: %v", src, err)))
-		return
-	}
+	}, nil
 }
