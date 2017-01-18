@@ -58,7 +58,7 @@ func pingHandler(resp http.ResponseWriter, _ *http.Request) {
 }
 
 func resizeHandler(resp http.ResponseWriter, req *http.Request) {
-	etag := md5sum(req.URL.RawQuery)
+	etag := md5sum(req.URL.Query().Encode())
 	if match := req.Header.Get("If-None-Match"); match != "" {
 		if strings.Contains(match, etag) {
 			resp.WriteHeader(http.StatusNotModified)
