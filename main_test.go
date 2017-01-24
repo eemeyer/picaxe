@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/pressly/chi"
@@ -49,15 +48,18 @@ func TestRequiredParameters(t *testing.T) {
 }
 
 func TestConversion(t *testing.T) {
-	assertTestImageContainsMetadata(t)
+	data, err := ioutil.ReadFile("testimages/baby-duck.jpeg")
+	if err != nil {
+		t.Fatalf("cannot read image file %v", err)
+		return
+	}
+	x, _ := exif.Decode(bytes.NewBuffer(data))
+	if tag, err := x.Get("Software"); err != nil || tag.String() != `"ACD Systems Digital Imaging"` {
+		t.Fatalf("Original test image should have exif %v '%v'", err, tag.String())
+	}
 	r := buildHTTPHandler().(chi.Router)
 	testImagePath := "/unit-test/image.jpg"
 	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
-		data, err := ioutil.ReadFile("testimages/baby-duck.jpeg")
-		if err != nil {
-			t.Fatalf("cannot read image file %v", err)
-			return
-		}
 		resp.Header().Add("Content-Type", "image/jpeg")
 		resp.Write(data)
 	})
@@ -72,18 +74,6 @@ func TestConversion(t *testing.T) {
 
 		_, err = exif.Decode(bytes.NewReader([]byte(body)))
 		assertEqual(t, io.EOF, err, "Expect to not be able to extract exif from converted image")
-	}
-}
-
-func assertTestImageContainsMetadata(t *testing.T) {
-	f, err := os.Open("testimages/baby-duck.jpeg")
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	x, _ := exif.Decode(f)
-	if tag, err := x.Get("Software"); err != nil || tag.String() != `"ACD Systems Digital Imaging"` {
-		t.Fatalf("Original test image should have exif %v '%v'", err, tag.String())
 	}
 }
 
