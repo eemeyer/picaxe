@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/pressly/chi"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 func TestPing(t *testing.T) {
@@ -46,6 +49,7 @@ func TestRequiredParameters(t *testing.T) {
 }
 
 func TestConversion(t *testing.T) {
+	assertTestImageContainsMetadata(t)
 	r := buildHTTPHandler().(chi.Router)
 	testImagePath := "/unit-test/image.jpg"
 	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
@@ -65,8 +69,22 @@ func TestConversion(t *testing.T) {
 			t.Fatal("cannot read expected image")
 		}
 		assertEqual(t, string(expected), body, "converted image")
-	}
 
+		_, err = exif.Decode(bytes.NewReader([]byte(body)))
+		assertEqual(t, io.EOF, err, "Expect to not be able to extract exif from converted image")
+	}
+}
+
+func assertTestImageContainsMetadata(t *testing.T) {
+	f, err := os.Open("testimages/baby-duck.jpeg")
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	x, _ := exif.Decode(f)
+	if tag, err := x.Get("Software"); err != nil || tag.String() != `"ACD Systems Digital Imaging"` {
+		t.Fatalf("Original test image should have exif %v '%v'", err, tag.String())
+	}
 }
 
 func assertEqual(t *testing.T, expected, actual interface{}, message string) {
