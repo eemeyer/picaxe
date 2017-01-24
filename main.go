@@ -102,8 +102,13 @@ func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 		resp.Write([]byte(fmt.Sprintf("Unable to get %s: %v", src, err)))
 		return
 	}
-
 	defer imgResp.Body.Close()
+	if http.StatusOK != imgResp.StatusCode {
+		resp.WriteHeader(imgResp.StatusCode)
+		resp.Write([]byte(fmt.Sprintf("Unable to get %s. Got %s", src, imgResp.Status)))
+		return
+	}
+
 	sourceImg, err := ioutil.ReadAll(imgResp.Body)
 	if err != nil {
 		resp.WriteHeader(http.StatusInternalServerError)

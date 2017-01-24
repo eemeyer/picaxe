@@ -57,8 +57,8 @@ func TestConversion(t *testing.T) {
 	if tag, err := x.Get("Software"); err != nil || tag.String() != `"ACD Systems Digital Imaging"` {
 		t.Fatalf("Original test image should have exif %v '%v'", err, tag.String())
 	}
-	r := buildHTTPHandler().(chi.Router)
 	testImagePath := "/unit-test/image.jpg"
+	r := buildHTTPHandler().(chi.Router)
 	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Add("Content-Type", "image/jpeg")
 		resp.Write(data)
@@ -77,15 +77,28 @@ func TestConversion(t *testing.T) {
 	}
 }
 
+func Test403OfSrc(t *testing.T) {
+	testImagePath := "/unit-test/image.jpg"
+	r := buildHTTPHandler().(chi.Router)
+	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(http.StatusForbidden)
+	})
+	ts := httptest.NewServer(r)
+	if resp, body := testRequest(t, ts, "GET", fmt.Sprintf("/api/picaxe/v1/get?src=%s%s&w=10&h=10", ts.URL, testImagePath), nil); resp != nil {
+		assertStatus(t, resp, http.StatusForbidden)
+		assertEqual(t, fmt.Sprintf("Unable to get %s%s. Got 403 Forbidden", ts.URL, testImagePath), body, "converted image")
+	}
+}
+
 func assertEqual(t *testing.T, expected, actual interface{}, message string) {
 	if expected != actual {
-		t.Fatalf("Expected %s to be '%v' but was '%v'", message, expected, actual)
+		t.Errorf("Expected %s to be '%v' but was '%v'", message, expected, actual)
 	}
 }
 
 func assertStatus(t *testing.T, resp *http.Response, expected int) {
 	if resp.StatusCode != expected {
-		t.Fatalf("Expected status of %d but was %d", expected, resp.StatusCode)
+		t.Errorf("Expected status of %d but was %d", expected, resp.StatusCode)
 	}
 }
 
