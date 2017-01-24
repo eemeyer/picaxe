@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	flags "github.com/jessevdk/go-flags"
 	"github.com/pressly/chi"
 	"github.com/pressly/chi/middleware"
 )
@@ -26,12 +27,35 @@ const (
 	httpClientKey contextKey = iota
 )
 
-func main() {
-	handler := buildHTTPHandler()
+type Options struct {
+	ListenAddress string `short:"l" long:"listen" description:"Listen address." value-name:"ADDRESS"`
+}
 
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+func main() {
+	var options Options
+	parser := flags.NewParser(&options, flags.HelpFlag|flags.PassDoubleDash)
+	if _, err := parser.Parse(); err != nil {
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			parser.WriteHelp(os.Stdout)
+			return
+		}
+		return
+	}
+
+	listenAddress := ensureAddressWithPort(options.ListenAddress, 7073)
+	fmt.Fprintf(os.Stdout, "listening on %s\n", listenAddress)
+	handler := buildHTTPHandler()
+	if err := http.ListenAndServe(listenAddress, handler); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
+}
+func ensureAddressWithPort(address string, defaultPort int) string {
+	if address == "" {
+		return fmt.Sprintf(":%d", defaultPort)
+	} else if !strings.Contains(address, ":") {
+		return fmt.Sprintf("%s:%d", address, defaultPort)
+	}
+	return address
 }
 
 func buildHTTPHandler() http.Handler {
