@@ -16,6 +16,8 @@ cache:
   - /drone/docker
 
 build:
+  # NOTE: golang container automatically sniffs our current directory and
+  #   puts us in /drone/src/github.com/t11e/picaxe.
   build:
     image: golang:1.7
     volumes: *docker_volumes
@@ -23,7 +25,12 @@ build:
     commands:
     - go get -u github.com/Masterminds/glide
     - glide install
-    - go build github.com/t11e/picaxe
+    - go build $(go list -e ./... | grep -v /vendor/)
+  test:
+    image: golang:1.7
+    volumes: *docker_volumes
+    commands:
+    - go test -v $(go list -e ./... | grep -v /vendor/)
 
 publish:
   docker:
