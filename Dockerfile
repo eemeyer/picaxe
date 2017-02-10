@@ -5,7 +5,7 @@ WORKDIR /go
 USER root
 
 # NOTE: Everything must already have been built outside the container
-COPY picaxe .
+COPY build/picaxe .
 
 RUN \
    addgroup --gid 9000 app \

@@ -25,7 +25,8 @@ build:
     commands:
     - go get -u github.com/Masterminds/glide
     - glide install
-    - go build $(go list -e ./... | grep -v /vendor/)
+    - mkdir -p build
+    - go build -o build/picaxe $(go list -e ./... | grep -v /vendor/)
   test:
     image: golang:1.7
     volumes: *docker_volumes
