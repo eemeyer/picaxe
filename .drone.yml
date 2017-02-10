@@ -1,0 +1,51 @@
+# NOTE: Requires repo be marked "trusted" in Drone UI
+aliases:
+- &docker_volumes
+  - "/var/run/docker.sock:/var/run/docker.sock"
+- &docker_auth
+  username: "$$DOCKER_USERNAME"
+  password: "$$DOCKER_PASSWORD"
+  email: "$$DOCKER_EMAIL"
+
+clone:
+  depth: 1
+
+cache:
+  mount:
+  - .git
+  - /drone/docker
+
+build:
+  build:
+    image: golang:1.7
+    volumes: *docker_volumes
+    pull: true
+    commands:
+    - go get -u github.com/Masterminds/glide
+    - glide install
+    - go build github.com/t11e/picaxe
+
+publish:
+  docker:
+    registry: "$$DOCKER_REGISTRY"
+    username: "$$DOCKER_USERNAME"
+    password: "$$DOCKER_PASSWORD"
+    email: "$$DOCKER_EMAIL"
+    auth_config: *docker_auth
+    volumes: *docker_volumes
+    repo: t11e-platform/picaxe
+    tag:
+    - "$${BRANCH}"
+    - "$${BRANCH}-$${COMMIT:1:7}"
+    insecure: false
+
+notify:
+  slack:
+    webhook_url: "$$SLACK_WEBHOOK"
+    username: "$$SLACK_USERNAME"
+    channel: "$$SLACK_CHANNEL"
+    template: "$$SLACK_TEMPLATE"
+    when:
+      success: true
+      failure: true
+      change: true
