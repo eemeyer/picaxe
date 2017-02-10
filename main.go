@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -58,7 +59,7 @@ func ensureAddressWithPort(address string, defaultPort int) string {
 	return address
 }
 
-func buildHTTPHandler() http.Handler {
+func buildHTTPHandler() *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -71,8 +72,7 @@ func buildHTTPHandler() http.Handler {
 	r.Get("/api/picaxe/ping", pingHandler)
 
 	// TODO: add middleware to check that request is allowed
-	r.Get("/api/picaxe/v1/get", resizeHandler)
-
+	r.Get("/api/picaxe/v1/:identifier/:region/:size/:rotation/*", resizeHandler)
 	return r
 }
 
@@ -131,34 +131,117 @@ func resizeHandler(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(buffer.Bytes())
 }
 
+var regionRegex = regexp.MustCompile(`(?P<full>full)|(?P<square>square)`)
+var sizeRegex = regexp.MustCompile(`(?P<max>max)|!(?P<bestwh>\d+,\d+)|(?P<wh>\d+,\d+)`)
+var formatRegexp = regexp.MustCompile("jpg|png|gif")
+
 func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
-	query := req.URL.Query()
-	src := query.Get("src")
-	if src == "" {
-		return "", nil, errors.New("src is required")
-	}
-	w, err := strconv.Atoi(query.Get("w"))
-	if err != nil {
-		return "", nil, errors.New("w is required")
-	}
-	h, err := strconv.Atoi(query.Get("h"))
-	if err != nil {
-		return "", nil, errors.New("h is required")
+	identifier := strings.TrimSpace(chi.URLParam(req, "identifier"))
+	src, err := url.Parse(identifier)
+	if err != nil || !map[string]bool{"http": true, "https": true}[src.Scheme] {
+		return "", nil, fmt.Errorf("invalid identifier '%s'", identifier)
 	}
 
-	return src, &ProcessingSpec{
+	regionName, region := namedMatch(regionRegex, chi.URLParam(req, "region"))
+	if region == "" {
+		return "", nil, fmt.Errorf("invalid or unsupported region '%s'", chi.URLParam(req, "region"))
+	}
+
+	sizeName, size := namedMatch(sizeRegex, chi.URLParam(req, "size"))
+	if size == "" {
+		return "", nil, fmt.Errorf("invalid size '%s'", chi.URLParam(req, "size"))
+	}
+
+	if rotation := chi.URLParam(req, "rotation"); rotation != "0" {
+		return "", nil, fmt.Errorf("invalid or unsupported rotation '%s'", rotation)
+	}
+	qf := strings.Split(chi.URLParam(req, "*"), ".")
+	quality := qf[0]
+	format := qf[1]
+	if quality != "default" {
+		return "", nil, fmt.Errorf("invalid or unsupported quality '%s'", quality)
+	}
+	if !formatRegexp.MatchString(format) {
+		return "", nil, fmt.Errorf("invalid or unsupported format '%s'", format)
+	}
+
+	spec := ProcessingSpec{
 		Format:               ImageFormatPng,
 		Trim:                 TrimModeFuzzy,
 		TrimFuzzFactor:       0.5,
-		Scale:                ScaleModeCover,
-		ScaleWidth:           w,
-		ScaleHeight:          h,
-		Crop:                 CropModeCenter,
-		CropWidth:            w,
-		CropHeight:           h,
+		Scale:                ScaleModeNone,
+		ScaleWidth:           0,
+		ScaleHeight:          0,
+		Crop:                 CropModeNone,
+		CropWidth:            0,
+		CropHeight:           0,
 		NormalizeOrientation: true,
 		Quality:              0.9,
-	}, nil
+	}
+
+	switch format {
+	case "jpg":
+		spec.Format = ImageFormatJpeg
+	case "png":
+		spec.Format = ImageFormatPng
+	case "gif":
+		spec.Format = ImageFormatGif
+	default:
+		panic(format)
+	}
+
+	switch regionName {
+	case "square":
+		spec.Crop = CropModeCenter
+	case "full":
+		spec.Crop = CropModeNone
+	default:
+		panic(regionName)
+	}
+
+	switch sizeName {
+	case "max":
+		spec.Scale = ScaleModeNone
+	case "bestwh":
+		spec.Scale = ScaleModeDown
+	case "wh":
+		spec.Scale = ScaleModeCover
+	default:
+		panic(sizeName)
+	}
+	if strings.Contains(size, ",") {
+		wh := strings.Split(size, ",")
+		w := wh[0]
+		h := wh[1]
+		d, err := strconv.Atoi(w)
+		if err != nil {
+			panic("cannot convert w")
+		}
+		spec.CropWidth = d
+		spec.ScaleWidth = d
+		d, err = strconv.Atoi(h)
+		if err != nil {
+			panic("cannot convert h")
+		}
+		spec.CropHeight = d
+		spec.ScaleHeight = d
+	}
+
+	return identifier, &spec, nil
+}
+
+func namedMatch(exp *regexp.Regexp, input string) (string, string) {
+	matches := exp.FindStringSubmatch(input)
+	if matches == nil {
+		return "", ""
+	}
+	names := exp.SubexpNames()
+	for i, value := range matches[1:] {
+		if value != "" {
+			return names[1:][i], value
+		}
+	}
+	return "", ""
 }
 
 func md5sum(query string) string {
