@@ -24,4 +24,4 @@ USER app
 
 EXPOSE 3000
 
-ENTRYPOINT ["picaxe", "--listen", ":3000"]
+ENTRYPOINT ["./picaxe", "--listen", ":3000"]
