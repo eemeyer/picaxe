@@ -1,8 +1,10 @@
-hash: 3aefa95b383ee03d020c6e0f12dc70d695f504c83c956f7ec2da7db193d41f0d
-updated: 2017-01-24T14:04:12.654777372-05:00
+hash: c1f0470c54ae96370e16ccaf3d62ab836b13c7226046d6a4942b00cbd28cd419
+updated: 2017-02-10T15:51:59.801861641-05:00
 imports:
 - name: github.com/disintegration/imaging
   version: 243d2d8673c1225a6afceeb9b3b4423d485dc8df
+- name: github.com/eemeyer/chi
+  version: e0ed772dd35c2f7f0a8770bf0ce1b4e5a81322fa
 - name: github.com/jessevdk/go-flags
   version: 8bc97d602c3bfeb5fc6fc9b5a9c898f245495637
 - name: github.com/nfnt/resize

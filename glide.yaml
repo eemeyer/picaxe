@@ -16,3 +16,4 @@ import:
   version: ~2.0.0
 - package: github.com/jessevdk/go-flags
   version: ^1.1.0
+- package: github.com/eemeyer/chi

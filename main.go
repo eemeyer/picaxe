@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
+	chi "github.com/eemeyer/chi"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/pressly/chi"
 	"github.com/pressly/chi/middleware"
 )
 
