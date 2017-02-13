@@ -87,14 +87,19 @@ func TestConversion(t *testing.T) {
 		resp.Write(data)
 	})
 	ts := httptest.NewServer(r)
-	if resp, body := testRequest(t, ts, "GET", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.png", url.QueryEscape(ts.URL+testImagePath)), nil); resp != nil {
-		assertStatus(t, resp, http.StatusOK)
-		expected, err := ioutil.ReadFile("testimages/baby-duck-10x10.png")
-		if err != nil {
-			t.Fatal("cannot read expected image")
-		}
-		assertEqual(t, string(expected), body, "converted image")
+	testConversion(t, ts, "testimages/baby-duck-10x10.png", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.png", url.QueryEscape(ts.URL+testImagePath)))
+	testConversion(t, ts, "testimages/baby-duck-10x10.jpg", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.jpg", url.QueryEscape(ts.URL+testImagePath)))
+	testConversion(t, ts, "testimages/baby-duck-10x10.gif", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.gif", url.QueryEscape(ts.URL+testImagePath)))
+}
 
+func testConversion(t *testing.T, ts *httptest.Server, expectedFile string, requestURL string) {
+	if resp, body := testRequest(t, ts, "GET", requestURL, nil); resp != nil {
+		assertStatus(t, resp, http.StatusOK)
+		expected, err := ioutil.ReadFile(expectedFile)
+		if err != nil {
+			t.Fatalf("cannot read expected image %s", expectedFile)
+		}
+		assertEqual(t, string(expected), body, fmt.Sprintf("converted image %s", expectedFile))
 		_, err = exif.Decode(bytes.NewReader([]byte(body)))
 		assertEqual(t, io.EOF, err, "Expect to not be able to extract exif from converted image")
 	}
