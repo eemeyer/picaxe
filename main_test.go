@@ -90,6 +90,9 @@ func TestConversion(t *testing.T) {
 	testConversion(t, ts, "testimages/baby-duck-10x10.png", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.png", url.QueryEscape(ts.URL+testImagePath)))
 	testConversion(t, ts, "testimages/baby-duck-10x10.jpg", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.jpg", url.QueryEscape(ts.URL+testImagePath)))
 	testConversion(t, ts, "testimages/baby-duck-10x10.gif", fmt.Sprintf("/api/picaxe/v1/%s/square/10,10/0/default.gif", url.QueryEscape(ts.URL+testImagePath)))
+	testConversion(t, ts, "testimages/baby-duck-full.png", fmt.Sprintf("/api/picaxe/v1/%s/full/max/0/default.png", url.QueryEscape(ts.URL+testImagePath)))
+	testConversion(t, ts, "testimages/baby-duck-full.jpg", fmt.Sprintf("/api/picaxe/v1/%s/full/max/0/default.jpg", url.QueryEscape(ts.URL+testImagePath)))
+	testConversion(t, ts, "testimages/baby-duck-full.gif", fmt.Sprintf("/api/picaxe/v1/%s/full/max/0/default.gif", url.QueryEscape(ts.URL+testImagePath)))
 }
 
 func testConversion(t *testing.T, ts *httptest.Server, expectedFile string, requestURL string) {
@@ -100,8 +103,9 @@ func testConversion(t *testing.T, ts *httptest.Server, expectedFile string, requ
 			t.Fatalf("cannot read expected image %s", expectedFile)
 		}
 		assertEqual(t, string(expected), body, fmt.Sprintf("converted image %s", expectedFile))
-		_, err = exif.Decode(bytes.NewReader([]byte(body)))
-		assertEqual(t, io.EOF, err, "Expect to not be able to extract exif from converted image")
+		if data, err := exif.Decode(bytes.NewReader([]byte(body))); err == nil {
+			t.Errorf("Expect to not be able to extract exif from converted image, but got %#v", data)
+		}
 	}
 }
 

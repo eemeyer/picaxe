@@ -167,7 +167,7 @@ func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
 
 	spec := ProcessingSpec{
 		Format:               ImageFormatPng,
-		Trim:                 TrimModeFuzzy,
+		Trim:                 TrimModeNone,
 		TrimFuzzFactor:       0.5,
 		Scale:                ScaleModeNone,
 		ScaleWidth:           0,
@@ -193,8 +193,10 @@ func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
 	switch regionName {
 	case "square":
 		spec.Crop = CropModeCenter
+		spec.Trim = TrimModeFuzzy
 	case "full":
 		spec.Crop = CropModeNone
+		spec.Trim = TrimModeNone
 	default:
 		panic(regionName)
 	}
@@ -226,7 +228,6 @@ func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
 		spec.CropHeight = d
 		spec.ScaleHeight = d
 	}
-
 	return identifier, &spec, nil
 }
 
