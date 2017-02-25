@@ -1,4 +1,4 @@
-package main
+package main_test
 
 import (
 	"bytes"
@@ -11,11 +11,13 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/eemeyer/chi"
 	"github.com/rwcarlsen/goexif/exif"
+	main "github.com/t11e/picaxe"
 )
 
 func TestPing(t *testing.T) {
-	ts := httptest.NewServer(buildHTTPHandler())
+	ts := httptest.NewServer(newHandler())
 	defer ts.Close()
 	if resp, body := testRequest(t, ts, "GET", "/api/picaxe/ping", nil); resp != nil {
 		assertStatus(t, resp, http.StatusOK)
@@ -25,7 +27,7 @@ func TestPing(t *testing.T) {
 
 // Support limited subset of iiiaf `full` and `square` regions combined with size `!w,h`, `max`
 func TestRequiredParameters(t *testing.T) {
-	ts := httptest.NewServer(buildHTTPHandler())
+	ts := httptest.NewServer(newHandler())
 	defer ts.Close()
 
 	if resp, body := testRequest(t, ts, "GET", "/api/picaxe/v1/source.png/full/max/0/default.png", nil); resp != nil {
@@ -81,7 +83,7 @@ func TestConversion(t *testing.T) {
 		t.Fatalf("Original test image should have exif %v '%v'", err, tag.String())
 	}
 	testImagePath := "/unit-test/image.jpg"
-	r := buildHTTPHandler()
+	r := newHandler()
 	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Add("Content-Type", "image/jpeg")
 		resp.Write(data)
@@ -111,7 +113,7 @@ func testConversion(t *testing.T, ts *httptest.Server, expectedFile string, requ
 
 func Test403OfSrc(t *testing.T) {
 	testImagePath := "/unit-test/image.jpg"
-	r := buildHTTPHandler()
+	r := newHandler()
 	r.Get(testImagePath, func(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(http.StatusForbidden)
 	})
@@ -167,4 +169,8 @@ func testUrl(options interface{}) string {
 		panic(err)
 	}
 	return out.String()
+}
+
+func newHandler() *chi.Mux {
+	return main.NewServer().Handler()
 }
