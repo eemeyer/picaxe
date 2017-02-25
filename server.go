@@ -1,15 +1,13 @@
-package main
+package picaxe
 
 import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,16 +17,16 @@ import (
 	"github.com/eemeyer/chi/middleware"
 )
 
-type contextKey int
+type ServerOptions struct {
+	ResourceResolver ResourceResolver
+}
 
-const (
-	httpClientKey contextKey = iota
-)
+type Server struct {
+	ServerOptions
+}
 
-type Server struct{}
-
-func NewServer() *Server {
-	return &Server{}
+func NewServer(opts ServerOptions) *Server {
+	return &Server{ServerOptions: opts}
 }
 
 func (s *Server) Run(address string) error {
@@ -47,7 +45,6 @@ func (s *Server) Handler() *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.CloseNotify)
-	r.Use(middleware.WithValue(httpClientKey, &http.Client{Timeout: time.Duration(10 * time.Second)}))
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Get("/api/picaxe/ping", func(resp http.ResponseWriter, _ *http.Request) {
 		resp.WriteHeader(200)
@@ -65,34 +62,26 @@ func (s *Server) handleResize(resp http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+
 	src, spec, err := makeProcessingSpec(req)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte(err.Error()))
 		return
 	}
-	httpClient, _ := req.Context().Value(httpClientKey).(http.Client)
-	imgResp, err := httpClient.Get(src)
+
+	reader, err := s.ResourceResolver.GetResource(src)
 	if err != nil {
+		if invalid, ok := err.(InvalidIdentifier); ok {
+			resp.WriteHeader(http.StatusBadRequest)
+			resp.Write([]byte(fmt.Sprintf("invalid identifier %q", invalid.Identifier)))
+			return
+		}
 		resp.WriteHeader(http.StatusInternalServerError)
-		resp.Write([]byte(fmt.Sprintf("Unable to get %s: %v", src, err)))
-		return
-	}
-	defer imgResp.Body.Close()
-	if http.StatusOK != imgResp.StatusCode {
-		resp.WriteHeader(imgResp.StatusCode)
-		resp.Write([]byte(fmt.Sprintf("Unable to get %s. Got %s", src, imgResp.Status)))
+		resp.Write([]byte(fmt.Sprintf("internal error retrieving resource %q", src)))
 		return
 	}
 
-	sourceImg, err := ioutil.ReadAll(imgResp.Body)
-	if err != nil {
-		resp.WriteHeader(http.StatusInternalServerError)
-		resp.Write([]byte(fmt.Sprintf("Unable to retrieve %s: %v", src, err)))
-		return
-	}
-
-	reader := bytes.NewReader(sourceImg)
 	buffer := bytes.NewBuffer(make([]byte, 0, 1024*50))
 	if err = ProcessImage(reader, buffer, *spec); err != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
@@ -112,11 +101,7 @@ var sizeRegex = regexp.MustCompile(`(?P<max>max)|!(?P<bestwh>\d+,\d+)|(?P<wh>\d+
 var formatRegexp = regexp.MustCompile("jpg|png|gif")
 
 func makeProcessingSpec(req *http.Request) (string, *ProcessingSpec, error) {
-	identifier := strings.TrimSpace(chi.URLParam(req, "identifier"))
-	src, err := url.Parse(identifier)
-	if err != nil || !map[string]bool{"http": true, "https": true}[src.Scheme] {
-		return "", nil, fmt.Errorf("invalid identifier '%s'", identifier)
-	}
+	identifier := chi.URLParam(req, "identifier")
 
 	regionName, region := namedMatch(regionRegex, chi.URLParam(req, "region"))
 	if region == "" {

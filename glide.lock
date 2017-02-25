@@ -1,29 +1,42 @@
-hash: c1f0470c54ae96370e16ccaf3d62ab836b13c7226046d6a4942b00cbd28cd419
-updated: 2017-02-10T15:51:59.801861641-05:00
+hash: 34e0244f155fa9b9f68c53a9ba7adc283390885c06ebcfca0b359d4e2a87f791
+updated: 2017-02-24T21:10:57.850251718-05:00
 imports:
+- name: github.com/davecgh/go-spew
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
+  subpackages:
+  - spew
 - name: github.com/disintegration/imaging
   version: 243d2d8673c1225a6afceeb9b3b4423d485dc8df
 - name: github.com/eemeyer/chi
   version: e0ed772dd35c2f7f0a8770bf0ce1b4e5a81322fa
+  subpackages:
+  - middleware
 - name: github.com/jessevdk/go-flags
-  version: 8bc97d602c3bfeb5fc6fc9b5a9c898f245495637
+  version: 48cf8722c3375517aba351d1f7577c40663a4407
 - name: github.com/nfnt/resize
   version: 891127d8d1b52734debe1b3c3d7e747502b6c366
 - name: github.com/oliamb/cutter
   version: 6bb26911f52436bb5c63667f9aaa2d1826b2df9e
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/pressly/chi
   version: 54f435d539226571eab1987ed862b1c0fdfdc892
-  subpackages:
-  - middleware
-- name: github.com/rs/xhandler
-  version: d9d9599b6aaf6a058cb7b1f48291ded2cbd13390
-- name: github.com/rs/xmux
-  version: 447ce20d8516cc0d2564fc3de70b5d078e0b816e
 - name: github.com/rwcarlsen/goexif
   version: 709fab3d192d7c62f86043caff1e7e3fb0f42bd8
   subpackages:
   - exif
   - tiff
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
+- name: github.com/stretchr/testify
+  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
+  subpackages:
+  - assert
+  - mock
+- name: github.com/vektra/mockery
+  version: 47a058062601e235731714f89d7ec95c1ec47a5e
 - name: golang.org/x/image
   version: 1ff62c92167a10494f3e0b1e77cb67860a6ac43a
   subpackages:
@@ -31,7 +44,7 @@ imports:
   - tiff
   - tiff/lzw
 - name: golang.org/x/net
-  version: cbbbe2bc0f2efdd2afb318d93f1eadb19350e4a3
+  version: 8b4af36cd21a1f85a7484b49feb7c79363106d8e
   subpackages:
   - context
 testImports: []

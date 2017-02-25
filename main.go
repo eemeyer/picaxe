@@ -1,4 +1,4 @@
-package main
+package picaxe
 
 import (
 	"fmt"
@@ -27,7 +27,9 @@ func main() {
 		return
 	}
 
-	server := NewServer()
+	server := NewServer(ServerOptions{
+		ResourceResolver: HTTPResourceResolver,
+	})
 	if err := server.Run(ensureAddressWithPort(options.ListenAddress, 7073)); err != nil {
 		log.Fatal(err)
 	}

@@ -9,11 +9,14 @@ import:
 - package: golang.org/x/net
   subpackages:
   - context
-- package: github.com/rs/xhandler
-  version: ~1.0.0
-- package: github.com/rs/xmux
 - package: github.com/pressly/chi
   version: ~2.0.0
 - package: github.com/jessevdk/go-flags
   version: ^1.1.0
 - package: github.com/eemeyer/chi
+- package: github.com/vektra/mockery
+  version: 47a058062601e235731714f89d7ec95c1ec47a5e
+- package: github.com/stretchr/testify
+  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
+  subpackages:
+  - assert

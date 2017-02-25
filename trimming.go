@@ -1,4 +1,4 @@
-package main
+package picaxe
 
 import (
 	"github.com/oliamb/cutter"
