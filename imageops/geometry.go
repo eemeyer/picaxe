@@ -1,0 +1,51 @@
+package imageops
+
+import (
+	"errors"
+	"image"
+	"math"
+)
+
+type RelativeRegion struct {
+	X, Y, W, H float64
+}
+
+func NewRelativeRegion(x, y, w, h float64) (*RelativeRegion, error) {
+	if !(x >= 0 && x <= 1 && y >= 0 && y <= 1 && w >= 0 && w <= 1 && h >= 0 && h <= 1) {
+		return nil, errors.New("Invalid coordinates")
+	}
+	return &RelativeRegion{X: x, Y: y, W: w, H: h}, nil
+}
+
+func (r RelativeRegion) IsEmpty() bool {
+	return r.W <= 0 || r.H <= 0
+}
+
+func (r RelativeRegion) ToRectangle(rect image.Rectangle) image.Rectangle {
+	w, h := float64(rect.Dx()), float64(rect.Dy())
+	return image.Rect(
+		round(r.X*w),
+		round(r.Y*h),
+		round(r.X*w+r.W*w),
+		round(r.Y*h+r.H*h)).Canon().Intersect(rect)
+}
+
+type RelativePoint struct {
+	X, Y float64
+}
+
+func NewRelativePoint(x, y float64) (*RelativePoint, error) {
+	if x < 0 || x > 1.0 || y < 0 || y > 1.0 {
+		return nil, errors.New("Invalid coordinates")
+	}
+	return &RelativePoint{X: x, Y: y}, nil
+}
+
+func (r RelativePoint) ToPoint(rect image.Rectangle) image.Point {
+	w, h := float64(rect.Dx()), float64(rect.Dy())
+	return image.Pt(round(r.X*w), round(r.Y*h))
+}
+
+func round(f float64) int {
+	return int(math.Floor(f + .5))
+}

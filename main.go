@@ -1,4 +1,4 @@
-package picaxe
+package main
 
 import (
 	"fmt"
@@ -9,11 +9,14 @@ import (
 	"os"
 	"strings"
 
-	flags "github.com/jessevdk/go-flags"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/t11e/picaxe/iiif"
+	"github.com/t11e/picaxe/server"
 )
 
 type Options struct {
-	ListenAddress string `short:"l" long:"listen" description:"Listen address." value-name:"ADDRESS"`
+	ListenAddress string `short:"l" long:"listen" description:"Listen address." value-name:"[HOST][:PORT]"`
 }
 
 func main() {
@@ -22,13 +25,15 @@ func main() {
 	if _, err := parser.Parse(); err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			parser.WriteHelp(os.Stdout)
-			return
+			os.Exit(2)
 		}
-		return
+		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
+		os.Exit(1)
 	}
 
-	server := NewServer(ServerOptions{
-		ResourceResolver: HTTPResourceResolver,
+	server := server.NewServer(server.ServerOptions{
+		ResourceResolver: server.HTTPResourceResolver,
+		ProcessorFactory: iiif.DefaultProcessorFactory,
 	})
 	if err := server.Run(ensureAddressWithPort(options.ListenAddress, 7073)); err != nil {
 		log.Fatal(err)

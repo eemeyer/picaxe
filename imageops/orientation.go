@@ -1,4 +1,4 @@
-package picaxe
+package imageops
 
 import (
 	"image"
