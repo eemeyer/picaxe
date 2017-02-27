@@ -26,12 +26,8 @@ func QueryETagMatcher(next http.Handler) http.Handler {
 }
 
 func buildETagFromRequest(r *http.Request) string {
-	return md5sum(r.URL.Query().Encode())
-}
-
-func md5sum(query string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(query))
+	hasher.Write([]byte(r.URL.Path))
 	hasher.Write([]byte{cacheVersion})
 	return hex.EncodeToString(hasher.Sum(nil))
 }
