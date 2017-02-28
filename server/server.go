@@ -64,6 +64,9 @@ func (s *Server) handleImage(w http.ResponseWriter, req *http.Request) {
 	}
 
 	spec := chi.URLParam(req, "*")
+	if req.URL.RawQuery != "" {
+		spec = spec + "?" + req.URL.RawQuery
+	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024*50))
 

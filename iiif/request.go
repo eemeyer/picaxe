@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/t11e/picaxe/imageops"
@@ -136,17 +137,20 @@ const (
 )
 
 type Request struct {
-	Identifier string
-	Region     Region
-	Size       Size
-	Format     Format
+	Identifier          string
+	Region              Region
+	Size                Size
+	Format              Format
+	AutoOrient          bool
+	TrimBorder          bool
+	TrimBorderFuzziness float64
 }
 
-var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^/]+)\.(.+)$`)
+var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^.]+)\.([^?]+)(?:\?(.*)?)$`)
 
 func ParseSpec(spec string) (*Request, error) {
 	parts := specRegexp.FindStringSubmatch(spec)
-	if len(parts) != 7 {
+	if len(parts) != 8 {
 		return nil, InvalidSpec{
 			Message: fmt.Sprintf("not a valid spec: %q", spec),
 		}
@@ -202,7 +206,58 @@ func ParseSpec(spec string) (*Request, error) {
 		req.Format = FormatDefault
 	}
 
+	if parts[7] != "" {
+		values, err := url.ParseQuery(parts[7])
+		if err != nil {
+			return nil, InvalidSpec{
+				Message: fmt.Sprintf("invalid query string %q", parts[7]),
+			}
+		}
+
+		if t := values.Get("trimBorder"); t != "" {
+			req.TrimBorderFuzziness, err = parseFloat(t, 0, 0.999)
+			if err != nil {
+				return nil, err
+			}
+			req.TrimBorder = req.TrimBorderFuzziness > 0
+		}
+
+		if t := values.Get("autoOrient"); t != "" {
+			req.AutoOrient, err = parseBoolean(t)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return &req, nil
+}
+
+func parseBoolean(value string) (bool, error) {
+	switch value {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, InvalidSpec{
+		Message: fmt.Sprintf("not a boolean value: %q", value),
+	}
+}
+
+func parseFloat(value string, min, max float64) (float64, error) {
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, InvalidSpec{
+			Message: fmt.Sprintf("not a floating-point value: %q", value),
+		}
+	}
+	if f < min || f > max {
+		return 0, InvalidSpec{
+			Message: fmt.Sprintf("value outside of range %f..%f: %f", min, max, f),
+		}
+	}
+	return f, nil
 }
 
 func parseRegion(regionValue string, region *Region) error {

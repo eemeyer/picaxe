@@ -43,15 +43,19 @@ func (processor) Process(
 		return err
 	}
 
-	r.Seek(0, 0)
-	metadata := imageops.NewMetadataFromReader(r)
-	if metadata.Exif != nil {
-		if tag, e := metadata.Exif.Get("Orientation"); e == nil {
-			img = imageops.NormalizeOrientation(img, tag.String())
+	if req.AutoOrient {
+		r.Seek(0, 0)
+		metadata := imageops.NewMetadataFromReader(r)
+		if metadata.Exif != nil {
+			if tag, e := metadata.Exif.Get("Orientation"); e == nil {
+				img = imageops.NormalizeOrientation(img, tag.String())
+			}
 		}
 	}
 
-	img = imageops.Trim(img, 0.1)
+	if req.TrimBorder {
+		img = imageops.Trim(img, req.TrimBorderFuzziness)
+	}
 
 	switch req.Region.Kind {
 	case RegionKindAbsolute:

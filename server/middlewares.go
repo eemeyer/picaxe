@@ -28,6 +28,7 @@ func QueryETagMatcher(next http.Handler) http.Handler {
 func buildETagFromRequest(r *http.Request) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(r.URL.Path))
+	hasher.Write([]byte(r.URL.RawQuery))
 	hasher.Write([]byte{cacheVersion})
 	return hex.EncodeToString(hasher.Sum(nil))
 }
