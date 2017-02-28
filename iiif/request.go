@@ -146,7 +146,7 @@ type Request struct {
 	TrimBorderFuzziness float64
 }
 
-var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^.]+)\.([^?]+)(?:\?(.*)?)$`)
+var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^.]+)\.([^?]+)(?:\?(.*))?$`)
 
 func ParseSpec(spec string) (*Request, error) {
 	parts := specRegexp.FindStringSubmatch(spec)
