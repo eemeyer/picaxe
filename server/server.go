@@ -57,6 +57,12 @@ func (s *Server) handlePing(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleImage(w http.ResponseWriter, req *http.Request) {
+	if req.Header.Get(resources.HTTPHeaderPixace) != "" {
+		log.Printf("Request contains loop-detecting header %q, refusing", resources.HTTPHeaderPixace)
+		respondWithError(w, http.StatusForbidden, "loop detected")
+		return
+	}
+
 	spec := chi.URLParam(req, "*")
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024*50))

@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const HTTPHeaderPixace = "X-Picaxe"
+
 type httpResolver struct {
 	client *http.Client
 }
@@ -39,6 +41,7 @@ func (h httpResolver) GetResource(identifier string) (io.ReadSeeker, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Add(HTTPHeaderPixace, "1") // Used to prevent loops
 
 	resp, err := h.client.Do(req)
 	if err != nil {

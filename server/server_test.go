@@ -7,28 +7,26 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eemeyer/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
 	"github.com/t11e/picaxe/iiif"
 	iiif_mocks "github.com/t11e/picaxe/iiif/mocks"
+	"github.com/t11e/picaxe/resources"
 	resources_mocks "github.com/t11e/picaxe/resources/mocks"
 	"github.com/t11e/picaxe/server"
 )
 
 func TestServer_ping(t *testing.T) {
-	ts := httptest.NewServer(newHandler(server.ServerOptions{
+	ts := newTestServer(server.ServerOptions{
 		ResourceResolver: &resources_mocks.Resolver{},
 		Processor:        &iiif_mocks.Processor{},
-	}))
+	})
 	defer ts.Close()
 
-	if resp, body := testRequest(t, ts, "GET", "/api/picaxe/ping", nil); resp != nil {
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "picaxe", body)
-	}
+	resp, body := doRequest(t, ts, "/api/picaxe/ping")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "picaxe", body)
 }
 
 func TestServer_invalidParams(t *testing.T) {
@@ -38,14 +36,13 @@ func TestServer_invalidParams(t *testing.T) {
 		Message: "not valid",
 	})
 
-	ts := httptest.NewServer(newHandler(server.ServerOptions{
+	ts := newTestServer(server.ServerOptions{
 		ResourceResolver: &resources_mocks.Resolver{},
 		Processor:        processor,
-	}))
+	})
 	defer ts.Close()
 
-	resp, body := testRequest(t, ts, "GET", "/api/picaxe/v1/iiif/myidentifier/full/max/0/default.png", nil)
-	require.NotNil(t, resp)
+	resp, body := doRequest(t, ts, "/api/picaxe/v1/iiif/myidentifier/full/max/0/default.png")
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	assert.Equal(t, `invalid request: not valid`, body)
 }
@@ -55,16 +52,37 @@ func TestServer_escaping(t *testing.T) {
 	processor.On("Process", "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png",
 		mock.Anything, mock.Anything).Return(nil)
 
-	ts := httptest.NewServer(newHandler(server.ServerOptions{
+	ts := newTestServer(server.ServerOptions{
 		ResourceResolver: &resources_mocks.Resolver{},
 		Processor:        processor,
-	}))
+	})
 	defer ts.Close()
 
-	resp, _ := testRequest(t, ts, "GET",
-		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
-	require.NotNil(t, resp)
+	resp, _ := doRequest(t, ts,
+		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestServer_loopDetection(t *testing.T) {
+	ts := newTestServer(server.ServerOptions{
+		ResourceResolver: &resources_mocks.Resolver{},
+		Processor:        &iiif_mocks.Processor{},
+	})
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL+"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add(resources.HTTPHeaderPixace, "1")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestServer_iiifHandler(t *testing.T) {
@@ -78,48 +96,41 @@ func TestServer_iiifHandler(t *testing.T) {
 			w.Write([]byte("result")) // Dummy image data
 		}).Return(nil)
 
-	ts := httptest.NewServer(newHandler(server.ServerOptions{
+	ts := newTestServer(server.ServerOptions{
 		ResourceResolver: resolver,
 		Processor:        processor,
-	}))
+	})
 	defer ts.Close()
 
-	resp, body := testRequest(t, ts, "GET",
-		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
-	require.NotNil(t, resp)
+	resp, body := doRequest(t, ts,
+		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png")
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, `result`, body)
 
 	processor.AssertNumberOfCalls(t, "Process", 1)
 }
 
-func testRequest(
-	t *testing.T,
-	ts *httptest.Server,
-	method, path string,
-	body io.Reader) (*http.Response, string) {
-	req, err := http.NewRequest(method, ts.URL+path, body)
+func doRequest(t *testing.T, ts *httptest.Server, path string) (*http.Response, string) {
+	req, err := http.NewRequest("GET", ts.URL+path, nil)
 	if err != nil {
 		t.Fatal(err)
-		return nil, ""
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
-		return nil, ""
 	}
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
-		return nil, ""
 	}
 	defer resp.Body.Close()
 
 	return resp, string(respBody)
 }
 
-func newHandler(options server.ServerOptions) *chi.Mux {
-	return server.NewServer(options).Handler()
+func newTestServer(options server.ServerOptions) *httptest.Server {
+	handler := server.NewServer(options).Handler()
+	return httptest.NewServer(handler)
 }
