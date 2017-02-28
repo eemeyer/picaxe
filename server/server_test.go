@@ -85,6 +85,36 @@ func TestServer_loopDetection(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
+type timeoutErr struct{}
+
+func (err timeoutErr) Error() string   { return "game over, man" }
+func (err timeoutErr) Timeout() bool   { return true }
+func (err timeoutErr) Temporary() bool { return true }
+
+func TestServer_timeouts(t *testing.T) {
+	processor := &iiif_mocks.Processor{}
+	processor.On("Process", mock.Anything, mock.Anything, mock.Anything).Return(timeoutErr{})
+
+	ts := newTestServer(server.ServerOptions{
+		ResourceResolver: &resources_mocks.Resolver{},
+		Processor:        processor,
+	})
+	defer ts.Close()
+
+	req, err := http.NewRequest("GET", ts.URL+"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+}
+
 func TestServer_iiifHandler(t *testing.T) {
 	resolver := &resources_mocks.Resolver{}
 

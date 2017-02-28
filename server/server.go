@@ -69,6 +69,11 @@ func (s *Server) handleImage(w http.ResponseWriter, req *http.Request) {
 
 	err := s.Processor.Process(spec, s.ResourceResolver, buf)
 	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			respondWithError(w, http.StatusServiceUnavailable, "timed out")
+			return
+		}
+
 		if invalid, ok := err.(resources.InvalidIdentifier); ok {
 			respondWithError(w, http.StatusBadRequest, "invalid identifier %q", invalid.Identifier)
 			return
