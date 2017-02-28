@@ -12,6 +12,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/t11e/picaxe/iiif"
+	"github.com/t11e/picaxe/resources"
 	"github.com/t11e/picaxe/server"
 )
 
@@ -32,8 +33,8 @@ func main() {
 	}
 
 	server := server.NewServer(server.ServerOptions{
-		ResourceResolver: server.HTTPResourceResolver,
-		ProcessorFactory: iiif.DefaultProcessorFactory,
+		ResourceResolver: resources.HTTPResolver,
+		Processor:        iiif.DefaultProcessor,
 	})
 	if err := server.Run(ensureAddressWithPort(options.ListenAddress, 7073)); err != nil {
 		log.Fatal(err)

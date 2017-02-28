@@ -29,7 +29,7 @@ $ ./build/picaxe -l localhost
 This will start it on the default port 7073. You can now try a URL such as:
 
 ```
-$ curl http://localhost:7073/api/picaxe/v1/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/200,/0/default.png
+$ curl http://localhost:7073/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/200,/0/default.png
 ```
 
 # License

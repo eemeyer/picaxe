@@ -1,9 +1,6 @@
 package server_test
 
 import (
-	"bytes"
-	"fmt"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,14 +14,14 @@ import (
 
 	"github.com/t11e/picaxe/iiif"
 	iiif_mocks "github.com/t11e/picaxe/iiif/mocks"
+	resources_mocks "github.com/t11e/picaxe/resources/mocks"
 	"github.com/t11e/picaxe/server"
-	server_mocks "github.com/t11e/picaxe/server/mocks"
 )
 
 func TestServer_ping(t *testing.T) {
 	ts := httptest.NewServer(newHandler(server.ServerOptions{
-		ResourceResolver: &server_mocks.ResourceResolver{},
-		ProcessorFactory: &iiif_mocks.ProcessorFactory{},
+		ResourceResolver: &resources_mocks.Resolver{},
+		Processor:        &iiif_mocks.Processor{},
 	}))
 	defer ts.Close()
 
@@ -35,105 +32,65 @@ func TestServer_ping(t *testing.T) {
 }
 
 func TestServer_invalidParams(t *testing.T) {
-	processorFactory := &iiif_mocks.ProcessorFactory{}
-	processorFactory.On("NewProcessor", mock.Anything).Return(nil, iiif.InvalidRequest{
+	processor := &iiif_mocks.Processor{}
+	processor.On("Process", "myidentifier/full/max/0/default.png",
+		mock.Anything, mock.Anything).Return(iiif.InvalidSpec{
 		Message: "not valid",
 	})
 
 	ts := httptest.NewServer(newHandler(server.ServerOptions{
-		ResourceResolver: &server_mocks.ResourceResolver{},
-		ProcessorFactory: processorFactory,
+		ResourceResolver: &resources_mocks.Resolver{},
+		Processor:        processor,
 	}))
 	defer ts.Close()
 
-	resp, body := testRequest(t, ts, "GET", "/api/picaxe/v1/some-identifier/full/max/0/default.png", nil)
+	resp, body := testRequest(t, ts, "GET", "/api/picaxe/v1/iiif/myidentifier/full/max/0/default.png", nil)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	assert.Equal(t, `invalid request: not valid`, body)
 }
 
-func TestServer_paramParsing(t *testing.T) {
-	for _, format := range []string{"png", "jpg", "gif", "invalid"} {
-		for _, region := range []string{"max", "full", "invalid"} {
-			for _, size := range []string{"max", "invalid"} {
-				for _, rotation := range []string{"0", "90", "180", "invalid"} {
-					for _, quality := range []string{"default", "invalid"} {
-						t.Run(fmt.Sprintf("region=%s,size=%s,format=%s,rotation=%s,quality=%s",
-							region, size, format, rotation, quality),
-							func(t *testing.T) {
-								url := fmt.Sprintf("/api/picaxe/v1/my-identifier/%s/%s/%s/%s.%s",
-									region, size, rotation, quality, format)
+func TestServer_escaping(t *testing.T) {
+	processor := &iiif_mocks.Processor{}
+	processor.On("Process", "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png",
+		mock.Anything, mock.Anything).Return(nil)
 
-								resolver := &server_mocks.ResourceResolver{}
-								resolver.On("GetResource", "my-identifier").Return(bytes.NewReader([]byte{}), nil)
+	ts := httptest.NewServer(newHandler(server.ServerOptions{
+		ResourceResolver: &resources_mocks.Resolver{},
+		Processor:        processor,
+	}))
+	defer ts.Close()
 
-								expectParams := iiif.Params{
-									"region":   region,
-									"size":     size,
-									"rotation": rotation,
-									"quality":  quality,
-									"format":   format,
-								}
-
-								processor := &iiif_mocks.Processor{}
-								processor.On("Process", mock.Anything, mock.Anything).Run(
-									func(args mock.Arguments) {
-										w := args.Get(1).(io.Writer)
-										w.Write([]byte("result")) // Dummy image data
-									}).Return(nil)
-
-								factory := &iiif_mocks.ProcessorFactory{}
-								factory.On("NewProcessor", expectParams).Return(processor, nil)
-
-								ts := httptest.NewServer(newHandler(server.ServerOptions{
-									ResourceResolver: resolver,
-									ProcessorFactory: factory,
-								}))
-								defer ts.Close()
-								resp, body := testRequest(t, ts, "GET", url, nil)
-								require.NotNil(t, resp)
-								assert.Equal(t, http.StatusOK, resp.StatusCode)
-								assert.Equal(t, `result`, body)
-							})
-					}
-				}
-			}
-		}
-	}
+	resp, _ := testRequest(t, ts, "GET",
+		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-func TestServer_resolver(t *testing.T) {
-	resolver := &server_mocks.ResourceResolver{}
-	resolver.On("GetResource", "my-identifier").Return(bytes.NewReader([]byte("hello")), nil)
+func TestServer_iiifHandler(t *testing.T) {
+	resolver := &resources_mocks.Resolver{}
 
 	processor := &iiif_mocks.Processor{}
-	processor.On("Process", mock.Anything, mock.Anything).Run(
+	processor.On("Process", "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png",
+		resolver, mock.Anything).Run(
 		func(args mock.Arguments) {
-			r := args.Get(0).(io.Reader)
-			b, err := ioutil.ReadAll(r)
-			if !assert.NoError(t, err) {
-				return
-			}
-			assert.Equal(t, []byte("hello"), b)
-
-			w := args.Get(1).(io.Writer)
+			w := args.Get(2).(io.Writer)
 			w.Write([]byte("result")) // Dummy image data
 		}).Return(nil)
 
-	factory := &iiif_mocks.ProcessorFactory{}
-	factory.On("NewProcessor", mock.Anything).Return(processor, nil)
-
 	ts := httptest.NewServer(newHandler(server.ServerOptions{
 		ResourceResolver: resolver,
-		ProcessorFactory: factory,
+		Processor:        processor,
 	}))
 	defer ts.Close()
-	resp, body := testRequest(t, ts, "GET", "/api/picaxe/v1/my-identifier/full/max/0/default.png", nil)
+
+	resp, body := testRequest(t, ts, "GET",
+		"/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/0/default.png", nil)
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, `result`, body)
 
-	resolver.AssertNumberOfCalls(t, "GetResource", 1)
+	processor.AssertNumberOfCalls(t, "Process", 1)
 }
 
 func testRequest(
@@ -161,18 +118,6 @@ func testRequest(
 	defer resp.Body.Close()
 
 	return resp, string(respBody)
-}
-
-func testUrl(options interface{}) string {
-	urlTemplate, err := template.New("test").Parse("/api/picaxe/v1/{{urlquery .Id}}/{{.Region}}/{{.Size}}/{{.Rotation}}//{{.Quality}}.{{.Format}}")
-	if err != nil {
-		panic("cannot create URL template")
-	}
-	out := bytes.NewBuffer(nil)
-	if err := urlTemplate.Execute(out, options); err != nil {
-		panic(err)
-	}
-	return out.String()
 }
 
 func newHandler(options server.ServerOptions) *chi.Mux {

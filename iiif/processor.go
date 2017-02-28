@@ -7,43 +7,36 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"log"
 
 	"github.com/t11e/picaxe/imageops"
+	"github.com/t11e/picaxe/resources"
 )
 
-//go:generate sh -c "mockery -name='Processor|ProcessorFactory' -case=underscore"
+//go:generate sh -c "mockery -name='Processor' -case=underscore"
 
 type Processor interface {
-	Process(io.ReadSeeker, io.Writer) error
+	Process(
+		spec string,
+		resolver resources.Resolver,
+		w io.Writer) error
 }
 
-type Params map[string]string
-
-type ProcessorFactory interface {
-	NewProcessor(params Params) (Processor, error)
-}
-
-type processorFactory struct{}
-
-// NewProcessor implements ProcessorFactory.
-func (processorFactory) NewProcessor(params Params) (Processor, error) {
-	req, err := RequestFromParams(params)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("params %#v", params)
-	log.Printf("-> req %#v", req)
-	return processor{req: *req}, nil
-}
-
-type processor struct {
-	req Request
-}
+type processor struct{}
 
 // Process implements Processor.
-func (p processor) Process(r io.ReadSeeker, w io.Writer) error {
-	req := p.req
+func (processor) Process(
+	spec string,
+	resolver resources.Resolver,
+	w io.Writer) error {
+	req, err := ParseSpec(spec)
+	if err != nil {
+		return err
+	}
+
+	r, err := resolver.GetResource(req.Identifier)
+	if err != nil {
+		return err
+	}
 
 	img, _, err := image.Decode(r)
 	if err != nil {
@@ -93,4 +86,4 @@ func (p processor) Process(r io.ReadSeeker, w io.Writer) error {
 	return fmt.Errorf("Unexpected format %q", req.Format)
 }
 
-var DefaultProcessorFactory = processorFactory{}
+var DefaultProcessor = processor{}

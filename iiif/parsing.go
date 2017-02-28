@@ -12,7 +12,7 @@ import (
 func parsePercentageCoords(s string) (*imageops.RelativeRegion, error) {
 	parts := percentageCoordsRegexp.FindStringSubmatch(s)
 	if len(parts) != 5 {
-		return nil, InvalidRequest{
+		return nil, InvalidSpec{
 			Message: fmt.Sprintf("Not a valid set of coordinates: %s", s),
 		}
 	}
@@ -43,7 +43,7 @@ func parsePercentageCoords(s string) (*imageops.RelativeRegion, error) {
 func parseRectangle(s string) (*image.Rectangle, error) {
 	parts := pixelRectangleRegexp.FindStringSubmatch(s)
 	if len(parts) != 5 {
-		return nil, InvalidRequest{
+		return nil, InvalidSpec{
 			Message: fmt.Sprintf("Not a valid set of coordinates: %s", s),
 		}
 	}
@@ -82,7 +82,7 @@ func parseRectangle(s string) (*image.Rectangle, error) {
 func parseWidthHeight(s string) (width *int, height *int, bestFit bool, err error) {
 	parts := pixelWHRegexp.FindStringSubmatch(s)
 	if len(parts) != 4 {
-		err = InvalidRequest{
+		err = InvalidSpec{
 			Message: fmt.Sprintf("Not a valid width/height: %s", s),
 		}
 		return
@@ -133,7 +133,7 @@ func parsePercentage(s string) (float64, error) {
 		return 0, err
 	}
 	if pcnt < 0 || pcnt > 100 {
-		return 0, InvalidRequest{
+		return 0, InvalidSpec{
 			Message: fmt.Sprintf("Invalid percentage number: %s", s),
 		}
 	}

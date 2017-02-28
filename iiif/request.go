@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/t11e/picaxe/imageops"
 )
 
-type InvalidRequest struct {
+type InvalidSpec struct {
 	Message string
 }
 
-func (e InvalidRequest) Error() string {
+func (e InvalidSpec) Error() string {
 	return e.Message
 }
 
@@ -134,56 +136,64 @@ const (
 )
 
 type Request struct {
-	Region Region
-	Size   Size
-	Format Format
+	Identifier string
+	Region     Region
+	Size       Size
+	Format     Format
 }
 
-func RequestFromParams(params map[string]string) (*Request, error) {
+var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^/]+)\.(.+)$`)
+
+func ParseSpec(spec string) (*Request, error) {
+	parts := specRegexp.FindStringSubmatch(spec)
+	if len(parts) != 7 {
+		return nil, InvalidSpec{
+			Message: fmt.Sprintf("not a valid spec: %q", spec),
+		}
+	}
+
 	var req Request
 
-	if region, ok := params["region"]; ok {
-		if err := parseRegion(region, &req.Region); err != nil {
-			return nil, err
-		}
+	if id, err := url.QueryUnescape(parts[1]); err == nil {
+		req.Identifier = id
 	} else {
-		req.Region.Kind = RegionKindFull
+		return nil, err
 	}
 
-	if size, ok := params["size"]; ok {
-		if err := parseSize(size, &req.Size); err != nil {
-			return nil, err
-		}
-	} else {
-		req.Size.Kind = SizeKindFull
+	if err := parseRegion(parts[2], &req.Region); err != nil {
+		return nil, err
 	}
 
-	if rotation, ok := params["rotation"]; ok && rotation != "" {
+	if err := parseSize(parts[3], &req.Size); err != nil {
+		return nil, err
+	}
+
+	if rotation := parts[4]; rotation != "" {
 		switch rotation {
 		case "0":
 			// OK
 		default:
-			return nil, InvalidRequest{
+			return nil, InvalidSpec{
 				Message: fmt.Sprintf("unsupported rotation %q", rotation),
 			}
 		}
 	}
 
-	if quality, ok := params["quality"]; ok && quality != "" {
+	if quality := parts[5]; quality != "" {
 		switch quality {
 		case "color", "default":
 			// OK
 		default:
-			return nil, InvalidRequest{
+			return nil, InvalidSpec{
 				Message: fmt.Sprintf("unsupported quality %q", quality),
 			}
 		}
 	}
 
-	if format, ok := params["format"]; ok && format != "" {
+	if format := parts[6]; format != "" {
 		name, ok := formatNameMap[format]
 		if !ok {
-			return nil, InvalidRequest{
+			return nil, InvalidSpec{
 				Message: fmt.Sprintf("unsupported format %q", format),
 			}
 		}
@@ -191,6 +201,7 @@ func RequestFromParams(params map[string]string) (*Request, error) {
 	} else {
 		req.Format = FormatDefault
 	}
+
 	return &req, nil
 }
 

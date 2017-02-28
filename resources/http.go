@@ -1,4 +1,4 @@
-package server
+package resources
 
 import (
 	"bytes"
@@ -11,37 +11,20 @@ import (
 	"time"
 )
 
-//go:generate sh -c "mockery -name='ResourceResolver' -case=underscore"
-
-type InvalidIdentifier struct {
-	Identifier string
-}
-
-// Error implements interface "error".
-func (err InvalidIdentifier) Error() string {
-	return fmt.Sprintf("Invalid identifier %q", err.Identifier)
-}
-
-// ResourceResolver is an interface for something that can resolve a resource
-// to a byte stream by its identifier.
-type ResourceResolver interface {
-	GetResource(identifier string) (io.ReadSeeker, error)
-}
-
-type httpResourceResolver struct {
+type httpResolver struct {
 	client *http.Client
 }
 
-// NewHTTPResourceResolver returns a resource resolver that downloads HTTP and HTTPS
+// NewHTTPResolver returns a resource resolver that downloads HTTP and HTTPS
 // URLs.
-func NewHTTPResourceResolver(client *http.Client) ResourceResolver {
-	return &httpResourceResolver{
+func NewHTTPResolver(client *http.Client) Resolver {
+	return &httpResolver{
 		client: client,
 	}
 }
 
-// GetResource implements interface ResourceResolver.
-func (h httpResourceResolver) GetResource(identifier string) (io.ReadSeeker, error) {
+// GetResource implements interface Resolver.
+func (h httpResolver) GetResource(identifier string) (io.ReadSeeker, error) {
 	u, ok := h.parseIdentifier(identifier)
 	if !ok {
 		return nil, InvalidIdentifier{Identifier: identifier}
@@ -70,7 +53,7 @@ func (h httpResourceResolver) GetResource(identifier string) (io.ReadSeeker, err
 	return bytes.NewReader(body), nil
 }
 
-func (h httpResourceResolver) parseIdentifier(identifier string) (*url.URL, bool) {
+func (h httpResolver) parseIdentifier(identifier string) (*url.URL, bool) {
 	u, err := url.Parse(strings.TrimSpace(identifier))
 	if err != nil {
 		return nil, false
@@ -83,8 +66,8 @@ func (h httpResourceResolver) parseIdentifier(identifier string) (*url.URL, bool
 	return nil, false
 }
 
-// HTTPResourceResolver is the default HTTP resolver.
-var HTTPResourceResolver = NewHTTPResourceResolver(&http.Client{
+// HTTPResolver is the default HTTP resolver.
+var HTTPResolver = NewHTTPResolver(&http.Client{
 	Timeout: time.Duration(10 * time.Second),
 })
 
