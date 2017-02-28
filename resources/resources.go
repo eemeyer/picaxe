@@ -9,11 +9,12 @@ import (
 
 type InvalidIdentifier struct {
 	Identifier string
+	Message    string
 }
 
 // Error implements interface "error".
 func (err InvalidIdentifier) Error() string {
-	return fmt.Sprintf("Invalid identifier %q", err.Identifier)
+	return fmt.Sprintf("invalid identifier %q: %s", err.Identifier, err.Message)
 }
 
 // Resolver is an interface for something that can resolve a resource

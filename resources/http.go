@@ -2,6 +2,7 @@ package resources
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,12 +26,21 @@ func NewHTTPResolver(client *http.Client) Resolver {
 
 // GetResource implements interface Resolver.
 func (h httpResolver) GetResource(identifier string) (io.ReadSeeker, error) {
-	u, ok := h.parseIdentifier(identifier)
-	if !ok {
-		return nil, InvalidIdentifier{Identifier: identifier}
+	u := strings.TrimSpace(identifier)
+
+	if err := h.validateIdentifier(u); err != nil {
+		return nil, InvalidIdentifier{
+			Message:    err.Error(),
+			Identifier: identifier,
+		}
 	}
 
-	resp, err := h.client.Get(u.String())
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := h.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -53,17 +63,17 @@ func (h httpResolver) GetResource(identifier string) (io.ReadSeeker, error) {
 	return bytes.NewReader(body), nil
 }
 
-func (h httpResolver) parseIdentifier(identifier string) (*url.URL, bool) {
-	u, err := url.Parse(strings.TrimSpace(identifier))
+func (h httpResolver) validateIdentifier(identifier string) error {
+	u, err := url.Parse(identifier)
 	if err != nil {
-		return nil, false
+		return errors.New("not a valid URL")
 	}
 
-	if u.Scheme == "http" || u.Scheme == "https" {
-		return u, true
+	if !(u.Scheme == "http" || u.Scheme == "https") {
+		return fmt.Errorf("not a valid scheme: %q", u.Scheme)
 	}
 
-	return nil, false
+	return nil
 }
 
 // HTTPResolver is the default HTTP resolver.
