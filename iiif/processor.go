@@ -14,6 +14,9 @@ import (
 
 //go:generate sh -c "mockery -name='Processor' -case=underscore"
 
+// maxScaleSize is the largest image we will scale to.
+var maxScaleSize = image.Pt(6000, 6000)
+
 type Processor interface {
 	Process(
 		spec string,
@@ -66,7 +69,7 @@ func (processor) Process(
 		img = imageops.CropSquare(img)
 	}
 
-	dims, err := req.Size.CalculateDimensions(img.Bounds(), image.Pt(6000, 6000))
+	dims, err := req.Size.CalculateDimensions(img.Bounds().Size(), maxScaleSize)
 	if err != nil {
 		return err
 	}

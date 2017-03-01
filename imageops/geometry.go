@@ -46,6 +46,47 @@ func (r RelativePoint) ToPoint(rect image.Rectangle) image.Point {
 	return image.Pt(round(r.X*w), round(r.Y*h))
 }
 
+// FitDimensions scales (down, or up if necessary) a set of dimensions to
+// fit with w, h, preserving the aspect ratio of the input.
+//
+// * If w and h are nil, the input size is returned.
+// * If w is nil, then the dimensions are scaled to fit within the height.
+// * If h is nil, then the dimensions are scaled to fit within the width.
+//
+func FitDimensions(size image.Point, w, h *int) image.Point {
+	if w == nil && h == nil {
+		return size
+	}
+
+	if size.Y <= 0 || size.X <= 0 || (w != nil && *w <= 0) || (h != nil && *h <= 0) {
+		return image.Pt(0, 0)
+	}
+
+	sw, sh := float64(size.X), float64(size.Y)
+
+	if w != nil && h != nil {
+		tw, th := float64(*w), float64(*h)
+		scale := min(tw/sw, th/sh)
+		return image.Pt(round(sw*scale), round(sh*scale))
+	}
+
+	aspect := sw / sh
+	if aspect <= 0 {
+		return image.Pt(0, 0)
+	}
+	if w != nil {
+		return image.Pt(*w, round(float64(*w)/aspect))
+	}
+	return image.Pt(round(float64(*h)*aspect), *h)
+}
+
+func min(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func round(f float64) int {
 	return int(math.Floor(f + .5))
 }

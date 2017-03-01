@@ -64,67 +64,48 @@ type Size struct {
 	Relative   *float64
 }
 
-func (size Size) CalculateDimensions(
-	rect image.Rectangle, limit image.Point) (image.Point, error) {
-	s := rect.Size()
+func (size Size) CalculateDimensions(in, maxSize image.Point) (image.Point, error) {
+	var result image.Point
 	switch size.Kind {
 	case SizeKindFull:
-		return checkDimensions(limit, s)
+		result = in
 	case SizeKindMax:
-		// TODO: Do aspect
-		if s.X > limit.X && s.Y > limit.Y {
-			if s.X > s.Y {
-				w := limit.X
-				return checkDimensions(limit, computeDimensions(rect, &w, nil))
-			}
-			h := limit.Y
-			return checkDimensions(limit, computeDimensions(rect, nil, &h))
-		} else if s.X > limit.X {
-			w := limit.X
-			return checkDimensions(limit, computeDimensions(rect, &w, nil))
-		} else if s.Y > limit.Y {
-			h := limit.Y
-			return checkDimensions(limit, computeDimensions(rect, nil, &h))
+		if in.X > maxSize.X || in.Y > maxSize.Y {
+			result = imageops.FitDimensions(in, &maxSize.X, &maxSize.Y)
+		} else {
+			result = in
 		}
-		return checkDimensions(limit, s)
 	case SizeKindAbsolute:
-		// TODO: AbsBestFit
-		return checkDimensions(limit, computeDimensions(rect, size.AbsWidth, size.AbsHeight))
-	case SizeKindRelative:
-		w := round(float64(s.X) * *size.Relative)
-		h := round(float64(s.Y) * *size.Relative)
-		return checkDimensions(limit, computeDimensions(rect, &w, &h))
-	}
-	panic("Invalid size specification")
-}
-
-func checkDimensions(limit image.Point, p image.Point) (image.Point, error) {
-	if p.X > limit.X || p.Y > limit.Y {
-		return image.Point{}, fmt.Errorf("(%d, %d) exceeds maximum allowed dimensions (%d, %d)",
-			p.X, p.Y, limit.X, limit.Y)
-	}
-	return p, nil
-}
-
-func computeDimensions(rect image.Rectangle, w, h *int) image.Point {
-	if rect.Dy() <= 0 || rect.Dx() <= 0 {
-		return image.Pt(0, 0)
-	}
-
-	aspect := float64(rect.Dy()) / float64(rect.Dx())
-	if aspect <= 0 {
-		return image.Pt(0, 0)
-	}
-
-	if w != nil {
-		if h != nil {
-			return image.Pt(*w, *h)
+		if size.AbsBestFit {
+			result = imageops.FitDimensions(in, size.AbsWidth, size.AbsHeight)
+		} else {
+			if size.AbsWidth != nil {
+				result.X = *size.AbsWidth
+			} else {
+				result.X = in.X
+			}
+			if size.AbsHeight != nil {
+				result.Y = *size.AbsHeight
+			} else {
+				result.Y = in.Y
+			}
 		}
-		return image.Pt(*w, int(math.Floor(float64(*w)*aspect)))
-	} else if h != nil {
-		return image.Pt(int(math.Floor(float64(*h)/aspect)), *h)
+	case SizeKindRelative:
+		w := round(float64(in.X) * *size.Relative)
+		h := round(float64(in.Y) * *size.Relative)
+		result = imageops.FitDimensions(in, &w, &h)
+	default:
+		panic("Invalid size specification")
 	}
-	return rect.Size()
+	return checkDimensions(maxSize, result)
+}
+
+func checkDimensions(maxSize, size image.Point) (image.Point, error) {
+	if size.X > maxSize.X || size.Y > maxSize.Y {
+		return image.Point{}, fmt.Errorf("(%d, %d) exceeds maximum allowed dimensions (%d, %d)",
+			size.X, size.Y, maxSize.X, maxSize.Y)
+	}
+	return size, nil
 }
 
 type Format string
