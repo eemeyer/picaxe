@@ -76,19 +76,10 @@ func (size Size) CalculateDimensions(in, maxSize image.Point) (image.Point, erro
 			result = in
 		}
 	case SizeKindAbsolute:
-		if size.AbsBestFit {
+		if size.AbsBestFit || size.AbsWidth == nil || size.AbsHeight == nil {
 			result = imageops.FitDimensions(in, size.AbsWidth, size.AbsHeight)
 		} else {
-			if size.AbsWidth != nil {
-				result.X = *size.AbsWidth
-			} else {
-				result.X = in.X
-			}
-			if size.AbsHeight != nil {
-				result.Y = *size.AbsHeight
-			} else {
-				result.Y = in.Y
-			}
+			result = image.Pt(*size.AbsWidth, *size.AbsHeight)
 		}
 	case SizeKindRelative:
 		w := round(float64(in.X) * *size.Relative)
