@@ -6,6 +6,7 @@ Picaxe is an [IIIF 2.1-compliant](http://iiif.io/api/image/2.1/) image server.
 
 * Support for `rotations` other than 0 not yet implemented.
 * Support for `quality` other than `default` and `color` not yet implemented.
+* Only image processing is implemented. The "Image Information Request" API is not yet implemented.
 
 # Requirements
 
