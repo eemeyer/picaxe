@@ -10,13 +10,13 @@ type Processor struct {
 	mock.Mock
 }
 
-// Process provides a mock function with given fields: spec, resolver, w
-func (_m *Processor) Process(spec string, resolver resources.Resolver, w io.Writer) error {
-	ret := _m.Called(spec, resolver, w)
+// Process provides a mock function with given fields: req, resolver, w, result
+func (_m *Processor) Process(req iiif.Request, resolver resources.Resolver, w io.Writer, result *iiif.Result) error {
+	ret := _m.Called(req, resolver, w, result)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, resources.Resolver, io.Writer) error); ok {
-		r0 = rf(spec, resolver, w)
+	if rf, ok := ret.Get(0).(func(iiif.Request, resources.Resolver, io.Writer, *iiif.Result) error); ok {
+		r0 = rf(req, resolver, w, result)
 	} else {
 		r0 = ret.Error(0)
 	}

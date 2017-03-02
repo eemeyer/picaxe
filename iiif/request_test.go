@@ -11,6 +11,144 @@ import (
 	"github.com/t11e/picaxe/imageops"
 )
 
+func TestRequest_String(t *testing.T) {
+	baseRequest := iiif.Request{
+		Identifier: "http://i.imgur.com/J1XaOIa.jpg",
+		Region: iiif.Region{
+			Kind: iiif.RegionKindFull,
+		},
+		Size: iiif.Size{
+			Kind: iiif.SizeKindMax,
+		},
+		Format: iiif.FormatPNG,
+	}
+
+	t.Run("identifier", func(t *testing.T) {
+		req := baseRequest
+		req.Identifier = "http://i.imgur.com/J1XaOIa.jpg"
+		assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+	})
+
+	t.Run("region", func(t *testing.T) {
+		t.Run("full", func(t *testing.T) {
+			req := baseRequest
+			req.Region.Kind = iiif.RegionKindFull
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+		t.Run("square", func(t *testing.T) {
+			req := baseRequest
+			req.Region.Kind = iiif.RegionKindSquare
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/square/max/default.png", req.String())
+		})
+		t.Run("relative", func(t *testing.T) {
+			req := baseRequest
+			req.Region.Kind = iiif.RegionKindRelative
+			req.Region.Relative = &imageops.RelativeRegion{
+				X: 0.255, Y: 0.255, W: 0.5, H: 0.5,
+			}
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/pct:25.5,25.5,50,50/max/default.png", req.String())
+		})
+		t.Run("absolute", func(t *testing.T) {
+			req := baseRequest
+			req.Region.Kind = iiif.RegionKindAbsolute
+			r := image.Rect(10, 10, 442, 244)
+			req.Region.Absolute = &r
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/10,10,432,234/max/default.png", req.String())
+		})
+	})
+
+	t.Run("size", func(t *testing.T) {
+		t.Run("full", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindFull
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/full/default.png", req.String())
+		})
+		t.Run("max", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindMax
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+		t.Run("relative", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindRelative
+			req.Size.Relative = newFloat64(0.505)
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/pct:50.5/default.png", req.String())
+		})
+		t.Run("absolute width and height", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindAbsolute
+			req.Size.AbsWidth = newInt(100)
+			req.Size.AbsHeight = newInt(200)
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/100,200/default.png", req.String())
+		})
+		t.Run("absolute width and height, best fit", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindAbsolute
+			req.Size.AbsWidth = newInt(100)
+			req.Size.AbsHeight = newInt(200)
+			req.Size.AbsBestFit = true
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/!100,200/default.png", req.String())
+		})
+		t.Run("absolute width", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindAbsolute
+			req.Size.AbsWidth = newInt(100)
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/100,/default.png", req.String())
+		})
+		t.Run("absolute height", func(t *testing.T) {
+			req := baseRequest
+			req.Size.Kind = iiif.SizeKindAbsolute
+			req.Size.AbsHeight = newInt(200)
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/,200/default.png", req.String())
+		})
+	})
+
+	t.Run("format", func(t *testing.T) {
+		t.Run("png", func(t *testing.T) {
+			req := baseRequest
+			req.Format = iiif.FormatPNG
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+		t.Run("jpg", func(t *testing.T) {
+			req := baseRequest
+			req.Format = iiif.FormatJPEG
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.jpg", req.String())
+		})
+		t.Run("gif", func(t *testing.T) {
+			req := baseRequest
+			req.Format = iiif.FormatGIF
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.gif", req.String())
+		})
+	})
+
+	t.Run("autoOrient", func(t *testing.T) {
+		t.Run("true", func(t *testing.T) {
+			req := baseRequest
+			req.AutoOrient = true
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png?autoOrient=true", req.String())
+		})
+		t.Run("false", func(t *testing.T) {
+			req := baseRequest
+			req.AutoOrient = false
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+	})
+
+	t.Run("trimBorder", func(t *testing.T) {
+		t.Run("true", func(t *testing.T) {
+			req := baseRequest
+			req.TrimBorder = true
+			req.TrimBorderFuzziness = 0.33
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png?trimBorder=0.33", req.String())
+		})
+		t.Run("false", func(t *testing.T) {
+			req := baseRequest
+			req.TrimBorder = false
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+	})
+}
+
 func TestParseSpec_invalid(t *testing.T) {
 	var err error
 

@@ -2,11 +2,14 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/eemeyer/chi"
@@ -45,7 +48,6 @@ func (s *Server) Handler() *chi.Mux {
 	r.Use(middleware.CloseNotify)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
-	r.Use(QueryETagMatcher)
 	r.Get("/api/picaxe/ping", s.handlePing)
 	r.Get("/api/picaxe/v1/iiif/*", s.handleImage)
 	return r
@@ -56,51 +58,78 @@ func (s *Server) handlePing(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("picaxe"))
 }
 
-func (s *Server) handleImage(w http.ResponseWriter, req *http.Request) {
-	if req.Header.Get(resources.HTTPHeaderPixace) != "" {
+func (s *Server) handleImage(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get(resources.HTTPHeaderPixace) != "" {
 		log.Printf("Request contains loop-detecting header %q, refusing", resources.HTTPHeaderPixace)
-		respondWithError(w, http.StatusForbidden, "loop detected")
+		writeError(w, http.StatusForbidden, "loop detected")
 		return
 	}
 
-	spec := chi.URLParam(req, "*")
-	if req.URL.RawQuery != "" {
-		spec = spec + "?" + req.URL.RawQuery
+	spec := chi.URLParam(r, "*")
+	if r.URL.RawQuery != "" {
+		spec = spec + "?" + r.URL.RawQuery
+	}
+
+	req, err := iiif.ParseSpec(spec)
+	if err != nil {
+		returnError(w, err)
+		return
+	}
+
+	etag := buildETagFromRequest(req)
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if strings.Contains(match, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, 1024*50))
 
-	err := s.Processor.Process(spec, s.ResourceResolver, buf)
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			respondWithError(w, http.StatusServiceUnavailable, "timed out")
-			return
-		}
-
-		if invalid, ok := err.(resources.InvalidIdentifier); ok {
-			respondWithError(w, http.StatusBadRequest, "invalid identifier %q", invalid.Identifier)
-			return
-		}
-
-		if invalid, ok := err.(iiif.InvalidSpec); ok {
-			respondWithError(w, http.StatusBadRequest, "invalid request: %s", invalid)
-			return
-		}
-
-		log.Printf("Error processing %q: %s", spec, err)
-		respondWithError(w, http.StatusInternalServerError, "internal error")
+	var result iiif.Result
+	if err := s.Processor.Process(*req, s.ResourceResolver, buf, &result); err != nil {
+		returnError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-type", "image/png")
-	w.Header().Set("Cache-Control", fmt.Sprintf("public,s-maxage=%d", 365*24*60*60))
-	w.Header().Set("ETag", buildETagFromRequest(req))
+	w.Header().Set("Content-type", result.ContentType)
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", cacheControlHeader)
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, buf)
 }
 
-func respondWithError(w http.ResponseWriter, statusCode int, format string, args ...interface{}) {
+func returnError(w http.ResponseWriter, err error) {
+	switch e := err.(type) {
+	case net.Error:
+		if e.Timeout() {
+			writeError(w, http.StatusServiceUnavailable, "timed out")
+			return
+		}
+	case resources.InvalidIdentifier:
+		writeError(w, http.StatusBadRequest, "invalid identifier %q", e.Identifier)
+		return
+	case iiif.InvalidSpec:
+		writeError(w, http.StatusBadRequest, "invalid request: %s", e)
+		return
+	}
+
+	log.Printf("Error: %s", err)
+	writeError(w, http.StatusInternalServerError, "internal error")
+}
+
+func writeError(w http.ResponseWriter, statusCode int, format string, args ...interface{}) {
 	w.WriteHeader(statusCode)
 	w.Header().Set("Content-type", "text/plain")
 	w.Write([]byte(fmt.Sprintf(format, args...)))
 }
+
+func buildETagFromRequest(req *iiif.Request) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(req.String()))
+	hasher.Write([]byte(cacheVersion))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+var cacheVersion = "1" // Increase to bust cache
+var cacheControlHeader = fmt.Sprintf("public,s-maxage=%d", 365*24*60*60)

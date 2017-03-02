@@ -17,25 +17,26 @@ import (
 // maxScaleSize is the largest image we will scale to.
 var maxScaleSize = image.Pt(6000, 6000)
 
+type Result struct {
+	ContentType string
+}
+
 type Processor interface {
 	Process(
-		spec string,
+		req Request,
 		resolver resources.Resolver,
-		w io.Writer) error
+		w io.Writer,
+		result *Result) error
 }
 
 type processor struct{}
 
 // Process implements Processor.
 func (processor) Process(
-	spec string,
+	req Request,
 	resolver resources.Resolver,
-	w io.Writer) error {
-	req, err := ParseSpec(spec)
-	if err != nil {
-		return err
-	}
-
+	w io.Writer,
+	result *Result) error {
 	r, err := resolver.GetResource(req.Identifier)
 	if err != nil {
 		return err
@@ -76,13 +77,22 @@ func (processor) Process(
 	img = imageops.Scale(img, dims)
 
 	switch req.Format {
-	case FormatDefault, FormatPNG:
+	case FormatPNG:
+		if result != nil {
+			result.ContentType = "image/png"
+		}
 		return png.Encode(w, img)
 	case FormatJPEG:
+		if result != nil {
+			result.ContentType = "image/jpeg"
+		}
 		return jpeg.Encode(w, img, &jpeg.Options{
 			Quality: 98,
 		})
 	case FormatGIF:
+		if result != nil {
+			result.ContentType = "image/gif"
+		}
 		return gif.Encode(w, img, &gif.Options{
 			NumColors: 256,
 			Quantizer: nil,

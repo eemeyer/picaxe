@@ -41,6 +41,26 @@ type Region struct {
 	Relative *imageops.RelativeRegion
 }
 
+func (r Region) String() string {
+	switch r.Kind {
+	case RegionKindFull:
+		return RegionStringFull
+	case RegionKindSquare:
+		return RegionStringSquare
+	case RegionKindRelative:
+		return fmt.Sprintf("%s%s,%s,%s,%s", RegionStringPct,
+			formatCompactFloat(100*r.Relative.X),
+			formatCompactFloat(100*r.Relative.Y),
+			formatCompactFloat(100*r.Relative.W),
+			formatCompactFloat(100*r.Relative.H))
+	case RegionKindAbsolute:
+		return fmt.Sprintf("%d,%d,%d,%d",
+			r.Absolute.Min.X, r.Absolute.Min.Y,
+			r.Absolute.Dx(), r.Absolute.Dy())
+	}
+	panic(fmt.Sprintf("invalid region kind %v", r.Kind))
+}
+
 const (
 	SizeStringFull = "full"
 	SizeStringMax  = "max"
@@ -64,9 +84,33 @@ type Size struct {
 	Relative   *float64
 }
 
-func (size Size) CalculateDimensions(in, maxSize image.Point) (image.Point, error) {
+func (s Size) String() string {
+	switch s.Kind {
+	case SizeKindFull:
+		return SizeStringFull
+	case SizeKindMax:
+		return SizeStringMax
+	case SizeKindRelative:
+		return fmt.Sprintf("%s%s", SizeStringPct, formatCompactFloat(100**s.Relative))
+	case SizeKindAbsolute:
+		var w, h string
+		if s.AbsWidth != nil {
+			w = fmt.Sprintf("%d", *s.AbsWidth)
+		}
+		if s.AbsHeight != nil {
+			h = fmt.Sprintf("%d", *s.AbsHeight)
+		}
+		if s.AbsBestFit {
+			return fmt.Sprintf("!%s,%s", w, h)
+		}
+		return fmt.Sprintf("%s,%s", w, h)
+	}
+	panic(fmt.Sprintf("invalid size kind %v", s.Kind))
+}
+
+func (s Size) CalculateDimensions(in, maxSize image.Point) (image.Point, error) {
 	var result image.Point
-	switch size.Kind {
+	switch s.Kind {
 	case SizeKindFull:
 		result = in
 	case SizeKindMax:
@@ -76,14 +120,14 @@ func (size Size) CalculateDimensions(in, maxSize image.Point) (image.Point, erro
 			result = in
 		}
 	case SizeKindAbsolute:
-		if size.AbsBestFit || size.AbsWidth == nil || size.AbsHeight == nil {
-			result = imageops.FitDimensions(in, size.AbsWidth, size.AbsHeight)
+		if s.AbsBestFit || s.AbsWidth == nil || s.AbsHeight == nil {
+			result = imageops.FitDimensions(in, s.AbsWidth, s.AbsHeight)
 		} else {
-			result = image.Pt(*size.AbsWidth, *size.AbsHeight)
+			result = image.Pt(*s.AbsWidth, *s.AbsHeight)
 		}
 	case SizeKindRelative:
-		w := round(float64(in.X) * *size.Relative)
-		h := round(float64(in.Y) * *size.Relative)
+		w := round(float64(in.X) * *s.Relative)
+		h := round(float64(in.Y) * *s.Relative)
 		result = imageops.FitDimensions(in, &w, &h)
 	default:
 		panic("Invalid size specification")
@@ -102,10 +146,9 @@ func checkDimensions(maxSize, size image.Point) (image.Point, error) {
 type Format string
 
 const (
-	FormatDefault Format = ""
-	FormatJPEG           = "jpg"
-	FormatPNG            = "png"
-	FormatGIF            = "gif"
+	FormatJPEG = "jpg"
+	FormatPNG  = "png"
+	FormatGIF  = "gif"
 )
 
 type Request struct {
@@ -116,6 +159,30 @@ type Request struct {
 	AutoOrient          bool
 	TrimBorder          bool
 	TrimBorderFuzziness float64
+}
+
+func (r Request) String() string {
+	s := fmt.Sprintf("%s/%s/%s/%s.%s",
+		url.QueryEscape(r.Identifier),
+		r.Region.String(),
+		r.Size.String(),
+		"default",
+		string(r.Format))
+
+	extra := make([]string, 0, 2)
+	if r.AutoOrient || r.TrimBorder {
+		if r.AutoOrient {
+			extra = append(extra, "autoOrient=true")
+		}
+		if r.TrimBorder {
+			extra = append(extra, fmt.Sprintf("trimBorder=%s",
+				formatCompactFloat(r.TrimBorderFuzziness)))
+		}
+	}
+	if len(extra) > 0 {
+		s += "?" + strings.Join(extra, "&")
+	}
+	return s
 }
 
 var specRegexp = regexp.MustCompile(`([^/]+)/([^/]+)/([^/]+)/([^/]+)/([^.]+)\.([^?]+)(?:\?(.*))?$`)
@@ -166,16 +233,12 @@ func ParseSpec(spec string) (*Request, error) {
 		}
 	}
 
-	if format := parts[6]; format != "" {
-		name, ok := formatNameMap[format]
-		if !ok {
-			return nil, InvalidSpec{
-				Message: fmt.Sprintf("unsupported format %q", format),
-			}
-		}
+	if name, ok := formatNameMap[parts[6]]; ok {
 		req.Format = name
 	} else {
-		req.Format = FormatDefault
+		return nil, InvalidSpec{
+			Message: fmt.Sprintf("unsupported format %q", parts[6]),
+		}
 	}
 
 	if parts[7] != "" {
@@ -287,6 +350,14 @@ func parseSize(sizeValue string, size *Size) error {
 
 func round(f float64) int {
 	return int(math.Floor(f + .5))
+}
+
+func formatCompactFloat(f float64) string {
+	s := strconv.FormatFloat(f, 'f', 10, 64)
+	for len(s) > 0 && s[len(s)-1] == '0' {
+		s = s[0 : len(s)-1]
+	}
+	return strings.TrimSuffix(s, ".")
 }
 
 var formatNameMap map[string]Format
