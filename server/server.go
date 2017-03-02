@@ -93,7 +93,7 @@ func (s *Server) handleImage(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-type", "image/png")
-	w.Header().Set("Cache-Control", fmt.Sprintf("public,s-max-age=%d", 365*24*60*60))
+	w.Header().Set("Cache-Control", fmt.Sprintf("public,s-maxage=%d", 365*24*60*60))
 	w.Header().Set("ETag", buildETagFromRequest(req))
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, buf)
