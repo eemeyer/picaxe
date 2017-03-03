@@ -3,7 +3,7 @@ FROM golang:1.7
 WORKDIR /go
 
 # NOTE: Everything must already have been built outside the container
-COPY build/picaxe .
+COPY build/picaxe su-exec ./
 
 RUN \
    addgroup --gid 9000 app \
