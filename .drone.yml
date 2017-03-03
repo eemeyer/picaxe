@@ -27,11 +27,20 @@ build:
     - glide install
     - mkdir -p build
     - go build -o build/picaxe .
+
   test:
     image: golang:1.7
     volumes: *docker_volumes
     commands:
     - go test -v $(go list -e ./... | grep -v /vendor/)
+
+  # Get su-exec
+  tools:
+    image: us.gcr.io/t11e-platform/docker-tools:master
+    pull: true
+    auth_config: *docker_auth
+    commands:
+    - cp /opt/docker-tools/su-exec .
 
 publish:
   docker:
