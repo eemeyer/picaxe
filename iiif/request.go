@@ -77,11 +77,12 @@ const (
 )
 
 type Size struct {
-	Kind       SizeKind
-	AbsWidth   *int
-	AbsHeight  *int
-	AbsBestFit bool
-	Relative   *float64
+	Kind            SizeKind
+	AbsWidth        *int
+	AbsHeight       *int
+	AbsBestFit      bool
+	AbsDoNotEnlarge bool
+	Relative        *float64
 }
 
 func (s Size) String() string {
@@ -124,6 +125,9 @@ func (s Size) CalculateDimensions(in, maxSize image.Point) (image.Point, error) 
 			result = imageops.FitDimensions(in, s.AbsWidth, s.AbsHeight)
 		} else {
 			result = image.Pt(*s.AbsWidth, *s.AbsHeight)
+		}
+		if s.AbsDoNotEnlarge && (result.X > in.X || result.Y > in.Y) {
+			result = in
 		}
 	case SizeKindRelative:
 		w := round(float64(in.X) * *s.Relative)
@@ -169,15 +173,16 @@ func (r Request) String() string {
 		"default",
 		string(r.Format))
 
-	extra := make([]string, 0, 2)
-	if r.AutoOrient || r.TrimBorder {
-		if r.AutoOrient {
-			extra = append(extra, "autoOrient=true")
-		}
-		if r.TrimBorder {
-			extra = append(extra, fmt.Sprintf("trimBorder=%s",
-				formatCompactFloat(r.TrimBorderFuzziness)))
-		}
+	extra := make([]string, 0, 3)
+	if r.AutoOrient {
+		extra = append(extra, "autoOrient=true")
+	}
+	if r.TrimBorder {
+		extra = append(extra, fmt.Sprintf("trimBorder=%s",
+			formatCompactFloat(r.TrimBorderFuzziness)))
+	}
+	if r.Size.AbsDoNotEnlarge {
+		extra = append(extra, "scale=down")
 	}
 	if len(extra) > 0 {
 		s += "?" + strings.Join(extra, "&")
@@ -262,6 +267,10 @@ func ParseSpec(spec string) (*Request, error) {
 			if err != nil {
 				return nil, err
 			}
+		}
+
+		if t := values.Get("scale"); t == "down" {
+			req.Size.AbsDoNotEnlarge = true
 		}
 	}
 

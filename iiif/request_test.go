@@ -147,6 +147,19 @@ func TestRequest_String(t *testing.T) {
 			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
 		})
 	})
+
+	t.Run("scale=down", func(t *testing.T) {
+		t.Run("true", func(t *testing.T) {
+			req := baseRequest
+			req.Size.AbsDoNotEnlarge = true
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png?scale=down", req.String())
+		})
+		t.Run("false", func(t *testing.T) {
+			req := baseRequest
+			req.TrimBorder = false
+			assert.Equal(t, "http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/max/default.png", req.String())
+		})
+	})
 }
 
 func TestParseSpec_invalid(t *testing.T) {
@@ -418,6 +431,661 @@ func TestParseSpec_size(t *testing.T) {
 					return
 				}
 				assert.Equal(t, test.expectResult, req.Size)
+			}
+		})
+	}
+}
+
+func TestParseSpec(t *testing.T) {
+	for _, test := range []struct {
+		in            string
+		expected      *iiif.Request
+		expectedError string
+	}{
+		{
+			in:            "invalid",
+			expectedError: `not a valid spec: "invalid"`,
+		},
+		{
+			in: "identifier/full/max/0/default.png",
+			expected: &iiif.Request{
+				Identifier: "identifier",
+				Region:     iiif.Region{Kind: iiif.RegionKindFull},
+				Size:       iiif.Size{Kind: iiif.SizeKindMax},
+				Format:     iiif.FormatPNG,
+			},
+		},
+		{
+			in: "identifier/full/max/0/default.png?trimBorder=0.5",
+			expected: &iiif.Request{
+				Identifier:          "identifier",
+				Region:              iiif.Region{Kind: iiif.RegionKindFull},
+				Size:                iiif.Size{Kind: iiif.SizeKindMax},
+				Format:              iiif.FormatPNG,
+				TrimBorder:          true,
+				TrimBorderFuzziness: 0.5,
+			},
+		},
+		{
+			in: "identifier/full/max/0/default.png?autoOrient=true",
+			expected: &iiif.Request{
+				Identifier: "identifier",
+				Region:     iiif.Region{Kind: iiif.RegionKindFull},
+				Size:       iiif.Size{Kind: iiif.SizeKindMax},
+				Format:     iiif.FormatPNG,
+				AutoOrient: true,
+			},
+		},
+		{
+			in: "identifier/full/max/0/default.png?scale=down",
+			expected: &iiif.Request{
+				Identifier: "identifier",
+				Region:     iiif.Region{Kind: iiif.RegionKindFull},
+				Size:       iiif.Size{Kind: iiif.SizeKindMax, AbsDoNotEnlarge: true},
+				Format:     iiif.FormatPNG,
+			},
+		},
+		{
+			in: "identifier/full/max/0/default.png?trimBorder=0.5&autoOrient=true&scale=down",
+			expected: &iiif.Request{
+				Identifier:          "identifier",
+				Region:              iiif.Region{Kind: iiif.RegionKindFull},
+				Size:                iiif.Size{Kind: iiif.SizeKindMax, AbsDoNotEnlarge: true},
+				Format:              iiif.FormatPNG,
+				TrimBorder:          true,
+				TrimBorderFuzziness: 0.5,
+				AutoOrient:          true,
+			},
+		},
+	} {
+		t.Run(test.in, func(t *testing.T) {
+			actual, err := iiif.ParseSpec(test.in)
+			if test.expectedError != "" {
+				assert.EqualError(t, err, test.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestSize_CalculateDimensions(t *testing.T) {
+	type scenario struct {
+		description   string
+		in            image.Point
+		maxSize       image.Point
+		expected      image.Point
+		expectedError string
+	}
+	for _, test := range []struct {
+		size      iiif.Size
+		scenarios []scenario
+	}{
+		{
+			size: iiif.Size{
+				Kind: iiif.SizeKindFull,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(500, 600) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind: iiif.SizeKindMax,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description: "larger than max",
+					in:          image.Point{500, 600},
+					maxSize:     image.Point{100, 200},
+					expected:    image.Point{100, 120},
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:      iiif.SizeKindAbsolute,
+				AbsWidth:  newInt(300),
+				AbsHeight: newInt(400),
+			},
+			scenarios: []scenario{
+				{
+					description:   "control",
+					in:            image.Point{},
+					maxSize:       image.Point{},
+					expectedError: "(300, 400) exceeds maximum allowed dimensions (0, 0)",
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{300, 400},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 400},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 400},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:     iiif.SizeKindAbsolute,
+				AbsWidth: newInt(300),
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{0, 0},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:      iiif.SizeKindAbsolute,
+				AbsHeight: newInt(400),
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{50, 50},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(400, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:       iiif.SizeKindAbsolute,
+				AbsWidth:   newInt(300),
+				AbsHeight:  newInt(400),
+				AbsBestFit: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:       iiif.SizeKindAbsolute,
+				AbsWidth:   newInt(300),
+				AbsBestFit: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{0, 0},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:       iiif.SizeKindAbsolute,
+				AbsHeight:  newInt(400),
+				AbsBestFit: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "scales up, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{50, 50},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(400, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsWidth:        newInt(300),
+				AbsHeight:       newInt(400),
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 400},
+				},
+				{
+					description: "does not enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsWidth:        newInt(300),
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description: "does not enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsHeight:       newInt(400),
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "does not enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{400, 400},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(400, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsWidth:        newInt(300),
+				AbsHeight:       newInt(400),
+				AbsBestFit:      true,
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "does not enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsWidth:        newInt(300),
+				AbsBestFit:      true,
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{300, 600},
+				},
+				{
+					description: "does not enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(300, 360) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:            iiif.SizeKindAbsolute,
+				AbsHeight:       newInt(400),
+				AbsBestFit:      true,
+				AbsDoNotEnlarge: true,
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "empty image",
+					in:          image.Point{},
+					maxSize:     image.Point{500, 500},
+					expected:    image.Point{},
+				},
+				{
+					description: "scales down",
+					in:          image.Point{1000, 2000},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{200, 400},
+				},
+				{
+					description: "does enlarge, smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{100, 200},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{400, 400},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(400, 400) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+		{
+			size: iiif.Size{
+				Kind:     iiif.SizeKindRelative,
+				Relative: newFloat64(0.5),
+			},
+			scenarios: []scenario{
+				{
+					description: "control",
+					in:          image.Point{},
+					maxSize:     image.Point{},
+					expected:    image.Point{},
+				},
+				{
+					description: "smaller than max",
+					in:          image.Point{100, 200},
+					maxSize:     image.Point{500, 600},
+					expected:    image.Point{50, 100},
+				},
+				{
+					description:   "larger than max",
+					in:            image.Point{500, 600},
+					maxSize:       image.Point{100, 200},
+					expectedError: "(250, 300) exceeds maximum allowed dimensions (100, 200)",
+				},
+			},
+		},
+	} {
+		description := test.size.String()
+		if test.size.AbsDoNotEnlarge {
+			description += "?scale=down"
+		}
+		t.Run(description, func(t *testing.T) {
+			for _, scenario := range test.scenarios {
+				t.Run(scenario.description, func(t *testing.T) {
+					actual, err := test.size.CalculateDimensions(scenario.in, scenario.maxSize)
+					if scenario.expectedError != "" {
+						assert.EqualError(t, err, scenario.expectedError)
+					} else {
+						assert.NoError(t, err)
+					}
+					assert.Equal(t, scenario.expected, actual)
+				})
 			}
 		})
 	}
