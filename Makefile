@@ -14,4 +14,7 @@ $(BUILD_DIR)/picaxe: $(GO_SOURCE_FILES)
 test: build 
 	go test `go list ./... | grep -v /vendor/` | fgrep -v "[no test files]"
 
-.PHONY: default all clean test build picaxe
+run: build
+	$(BUILD_DIR)/picaxe -l localhost
+
+.PHONY: default all clean test run build picaxe

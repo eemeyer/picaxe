@@ -24,7 +24,7 @@ $ make
 Then run:
 
 ```shell
-$ ./build/picaxe -l localhost
+$ make run
 ```
 
 This will start it on the default port 7073. You can now try a URL such as:
