@@ -1,23 +1,22 @@
-FROM golang:1.7
+FROM us.gcr.io/t11e-platform/base-go
 
-WORKDIR /go
+RUN mkdir -p /go/src/github.com/t11e/picaxe \
+  && chown -R app:app /go/src/github.com/t11e/picaxe
 
-# NOTE: Everything must already have been built outside the container
-COPY build/picaxe su-exec ./
+USER app
+WORKDIR /go/src/github.com/t11e/picaxe
 
+COPY glide.yaml glide.lock ./
+RUN glide install
+
+COPY . ./
 RUN \
-   addgroup --gid 9000 app \
-&& adduser \
-  --uid 9000 \
-  --home $PWD \
-  --ingroup app \
-  --disabled-password \
-  --no-create-home \
-  --disabled-login \
-  --gecos '' \
-  --quiet \
-  app
+     go build -o /srv/picaxe github.com/t11e/picaxe \
+  && go test $(go list github.com/t11e/picaxe/... | fgrep -v /vendor)
 
+USER root
+RUN rm -rf /go && chown root:root /srv/*
+
+WORKDIR /srv
 EXPOSE 3000
-
-ENTRYPOINT ["./su-exec", "app", "./picaxe", "--listen", ":3000"]
+ENTRYPOINT ["su-exec", "app", "/srv/picaxe", "--listen", ":3000"]
