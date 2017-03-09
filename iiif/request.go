@@ -269,8 +269,12 @@ func ParseSpec(spec string) (*Request, error) {
 			}
 		}
 
-		if t := values.Get("scale"); t == "down" {
-			req.Size.AbsDoNotEnlarge = true
+		if t := values.Get("scale"); t != "" {
+			if t == "down" {
+				req.Size.AbsDoNotEnlarge = true
+			} else {
+				return nil, InvalidSpec{Message: fmt.Sprintf(`not a valid scale: "%s"`, t)}
+			}
 		}
 	}
 

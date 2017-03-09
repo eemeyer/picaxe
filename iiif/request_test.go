@@ -486,6 +486,10 @@ func TestParseSpec(t *testing.T) {
 			},
 		},
 		{
+			in:            "identifier/full/max/0/default.png?scale=invalid",
+			expectedError: `not a valid scale: "invalid"`,
+		},
+		{
 			in: "identifier/full/max/0/default.png?trimBorder=0.5&autoOrient=true&scale=down",
 			expected: &iiif.Request{
 				Identifier:          "identifier",
