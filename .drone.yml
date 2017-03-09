@@ -1,7 +1,10 @@
-# NOTE: Requires repo be marked "trusted" in Drone UI
+# NOTE: Must be run as "trusted" by Drone
+
 aliases:
-- &docker_volumes
+- &volumes
   - "/var/run/docker.sock:/var/run/docker.sock"
+  # Docker credentials for using "docker push"
+  - "/etc/docker-auth:/root/.docker"
 - &docker_auth
   username: "$$DOCKER_USERNAME"
   password: "$$DOCKER_PASSWORD"
@@ -13,48 +16,27 @@ clone:
 cache:
   mount:
   - .git
-  - /drone/docker
 
 build:
-  # NOTE: golang container automatically sniffs our current directory and
-  #   puts us in /drone/src/github.com/t11e/picaxe.
   build:
-    image: golang:1.7
-    volumes: *docker_volumes
+    image: docker:1.11.2
     pull: true
-    commands:
-    - go get -u github.com/Masterminds/glide
-    - glide install
-    - mkdir -p build
-    - go build -o build/picaxe .
-
-  test:
-    image: golang:1.7
-    volumes: *docker_volumes
-    commands:
-    - go test -v $(go list -e ./... | grep -v /vendor/)
-
-  # Get su-exec
-  tools:
-    image: us.gcr.io/t11e-platform/docker-tools:master
-    pull: true
+    volumes: *volumes
     auth_config: *docker_auth
     commands:
-    - cp /opt/docker-tools/su-exec .
+    - docker build --pull -t us.gcr.io/t11e-platform/picaxe:$$COMMIT .
 
-publish:
-  docker:
-    registry: "$$DOCKER_REGISTRY"
-    username: "$$DOCKER_USERNAME"
-    password: "$$DOCKER_PASSWORD"
-    email: "$$DOCKER_EMAIL"
+  publish:
+    image: docker:1.11.2
+    pull: true
     auth_config: *docker_auth
-    volumes: *docker_volumes
-    repo: t11e-platform/picaxe
-    tag:
-    - "$${BRANCH}"
-    - "$${BRANCH}-$${COMMIT:1:7}"
-    insecure: false
+    volumes: *volumes
+    commands:
+    - docker tag us.gcr.io/t11e-platform/picaxe:$$COMMIT us.gcr.io/t11e-platform/picaxe:$$BRANCH
+    - docker push us.gcr.io/t11e-platform/picaxe:$$COMMIT
+    - docker push us.gcr.io/t11e-platform/picaxe:$$BRANCH
+    when:
+      event: push
 
 notify:
   slack:
