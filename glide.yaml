@@ -13,7 +13,6 @@ import:
   version: ~2.0.0
 - package: github.com/jessevdk/go-flags
   version: ^1.1.0
-- package: github.com/eemeyer/chi
 - package: github.com/vektra/mockery
   version: 47a058062601e235731714f89d7ec95c1ec47a5e
 - package: github.com/stretchr/testify

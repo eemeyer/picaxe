@@ -1,5 +1,5 @@
-hash: 34e0244f155fa9b9f68c53a9ba7adc283390885c06ebcfca0b359d4e2a87f791
-updated: 2017-02-24T21:10:57.850251718-05:00
+hash: d66e4ebfcdcb51fea3812e1275d894c46d46506ecb107a58277d6c7e86acf992
+updated: 2017-03-15T10:23:58.764939442-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
@@ -35,6 +35,7 @@ imports:
   subpackages:
   - assert
   - mock
+  - require
 - name: github.com/vektra/mockery
   version: 47a058062601e235731714f89d7ec95c1ec47a5e
 - name: golang.org/x/image
