@@ -11,8 +11,8 @@ build: $(BUILD_DIR)/picaxe
 $(BUILD_DIR)/picaxe: $(GO_SOURCE_FILES)
 	go build -o $(BUILD_DIR)/picaxe .
 
-test: build 
-	go test `go list ./... | grep -v /vendor/` | fgrep -v "[no test files]"
+test: build
+	go test `glide novendor`
 
 run: build
 	$(BUILD_DIR)/picaxe -l localhost
