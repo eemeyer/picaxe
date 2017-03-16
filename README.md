@@ -11,7 +11,9 @@ Picaxe is an [IIIF 2.1-compliant](http://iiif.io/api/image/2.1/) image server.
 # Requirements
 
 * Go 1.7 or later.
-* GNU Make to build.
+* To build/test:
+  * GNU Make
+  * Mockery: `go get github.com/vektra/mockery`
 
 # Running
 
