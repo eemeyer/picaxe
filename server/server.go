@@ -21,14 +21,17 @@ import (
 type ServerOptions struct {
 	ResourceResolver resources.Resolver
 	Processor        iiif.Processor
+	MaxAge           time.Duration
 }
 
 type Server struct {
 	ServerOptions
+	cacheControlHeader string
 }
 
 func NewServer(opts ServerOptions) *Server {
-	return &Server{ServerOptions: opts}
+	cacheControlHeader := fmt.Sprintf("public,s-maxage=%0.f", opts.MaxAge.Seconds())
+	return &Server{ServerOptions: opts, cacheControlHeader: cacheControlHeader}
 }
 
 func (s *Server) Run(address string) error {
@@ -94,7 +97,7 @@ func (s *Server) handleImage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-type", result.ContentType)
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", cacheControlHeader)
+	w.Header().Set("Cache-Control", s.cacheControlHeader)
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, buf)
 }
@@ -132,4 +135,3 @@ func buildETagFromRequest(req *iiif.Request) string {
 }
 
 var cacheVersion = "1" // Increase to bust cache
-var cacheControlHeader = fmt.Sprintf("public,s-maxage=%d", 365*24*60*60)

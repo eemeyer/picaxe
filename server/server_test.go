@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -121,6 +122,7 @@ func TestServer_iiifHandler(t *testing.T) {
 	ts := newTestServer(server.ServerOptions{
 		ResourceResolver: resolver,
 		Processor:        processor,
+		MaxAge:           time.Hour,
 	})
 	defer ts.Close()
 
@@ -129,6 +131,8 @@ func TestServer_iiifHandler(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "result", body)
 	require.Equal(t, "image/smurf", resp.Header.Get("Content-Type"))
+	require.Equal(t, "public,s-maxage=3600", resp.Header.Get("Cache-Control"))
+	require.Equal(t, "220ecea9df8e805373fd15a35bc29ef1d5c9119e7b139f3e6c271a2a9bdd79be", resp.Header.Get("ETag"))
 
 	processor.AssertNumberOfCalls(t, "Process", 1)
 }

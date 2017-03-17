@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -18,6 +19,7 @@ import (
 
 type Options struct {
 	ListenAddress string `short:"l" long:"listen" description:"Listen address." value-name:"[HOST][:PORT]"`
+	MaxAge        string `short:"m" long:"max-age" default:"31536000s" description:"max-age for cache-control response header." value-name:"[integer][unit h,m, or s]"`
 }
 
 func main() {
@@ -31,10 +33,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", err.Error())
 		os.Exit(1)
 	}
+	var maxAge time.Duration
+	{
+		var err error
+		if maxAge, err = time.ParseDuration(options.MaxAge); err != nil {
+			fmt.Fprintf(os.Stderr, "max-age %s\n", err.Error())
+			os.Exit(1)
+		}
+	}
 
 	server := server.NewServer(server.ServerOptions{
 		ResourceResolver: resources.HTTPResolver,
 		Processor:        iiif.DefaultProcessor,
+		MaxAge:           maxAge,
 	})
 	if err := server.Run(ensureAddressWithPort(options.ListenAddress, 7073)); err != nil {
 		log.Fatal(err)
