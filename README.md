@@ -37,11 +37,7 @@ $ curl http://localhost:7073/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaO
 
 # Features
 
-In addition to IIIF parameters, additional parameters can be specified on the query string. For example:he following features are supported.
-
-```shell
-$ curl http://localhost:7073/api/picaxe/v1/iiif/http%3A%2F%2Fi.imgur.com%2FJ1XaOIa.jpg/full/200,/0/default.png?autoOrient=true
-```
+In addition to IIIF parameters, additional parameters can be specified on the query string. For example, the following features are supported.
 
 ## Automatic orientation
 
